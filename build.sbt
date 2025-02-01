@@ -25,23 +25,6 @@ ThisBuild / tlJdkRelease := Some(11)
 
 Global / excludeLintKeys += tlBaseVersion
 
-val commonSettings = Seq(
-  libraryDependencies ++= Seq(
-    catsCore,
-    catsEffect,
-    scalactic,
-    jackson,
-    logback,
-    scalatest,
-    scalamock
-  ) ++ circe,
-  scalacOptions ++= Seq(
-    "-feature",
-    "-language:implicitConversions",
-    "-Werror"
-  )
-)
-
 val circeVersion = "0.14.1"
 val catsVersion = "2.13.0"
 val catsEffectVersion = "3.5.7"
@@ -70,18 +53,40 @@ lazy val decline = "com.monovore" %% "decline" % declineVersion
 lazy val scalatest = "org.scalatest" %% "scalatest" % scalaTestVersion % Test
 lazy val scalamock = "org.scalamock" %% "scalamock" % scalamockVersion % Test
 
-assembly / assemblyMergeStrategy := {
-  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-  case "module-info.class"           => MergeStrategy.discard
-  case x =>
-    val oldStrategy = (assembly / assemblyMergeStrategy).value
-    oldStrategy(x)
-}
+val commonSettings = Seq(
+  libraryDependencies ++= Seq(
+    catsCore,
+    catsEffect,
+    scalactic,
+    jackson,
+    logback,
+    scalatest,
+    scalamock
+  ) ++ circe,
+  scalacOptions ++= Seq(
+    "-feature",
+    "-language:implicitConversions",
+    "-Werror"
+  )
+)
+
+val assemblySettings = Seq(
+  assembly / mainClass := Some("com.quincyjo.stardrop.cli.App"),
+  assembly / assemblyJarName := "stardrop.jar",
+  assembly / assemblyMergeStrategy := {
+    case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+    case "module-info.class"           => MergeStrategy.discard
+    case x =>
+      val oldStrategy = (assembly / assemblyMergeStrategy).value
+      oldStrategy(x)
+  }
+)
 
 lazy val root = tlCrossRootProject
   .aggregate(core, alternativeTextures, customFurniture, converters, cli)
 
 lazy val core = project
+  .disablePlugins(sbtassembly.AssemblyPlugin)
   .in(file("modules/core"))
   .settings(
     name := "Stardrop Core",
@@ -90,6 +95,7 @@ lazy val core = project
   )
 
 lazy val alternativeTextures = project
+  .disablePlugins(sbtassembly.AssemblyPlugin)
   .in(file("modules/alternative-textures"))
   .dependsOn(core)
   .settings(
@@ -100,6 +106,7 @@ lazy val alternativeTextures = project
   )
 
 lazy val customFurniture = project
+  .disablePlugins(sbtassembly.AssemblyPlugin)
   .in(file("modules/custom-furniture"))
   .dependsOn(core)
   .settings(
@@ -110,6 +117,7 @@ lazy val customFurniture = project
   )
 
 lazy val converters = project
+  .disablePlugins(sbtassembly.AssemblyPlugin)
   .in(file("modules/converters"))
   .dependsOn(core, alternativeTextures, customFurniture)
   .settings(
@@ -123,8 +131,10 @@ lazy val cli = project
   .in(file("modules/cli"))
   .dependsOn(core, converters)
   .settings(
+    publish / skip := true,
     libraryDependencies += decline,
     name := "Stardrop Cli",
     moduleName := "stardrop-cli",
-    commonSettings
+    commonSettings,
+    assemblySettings
   )
