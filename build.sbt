@@ -32,7 +32,6 @@ val commonSettings = Seq(
     scalactic,
     jackson,
     logback,
-    decline,
     scalatest,
     scalamock
   ) ++ circe,
@@ -62,7 +61,8 @@ lazy val circe = Seq(
   "io.circe" %% "circe-parser"
 ).map(_ % circeVersion)
 lazy val scalactic = "org.scalactic" %% "scalactic" % scalaTestVersion
-lazy val jackson = "com.fasterxml.jackson.core" % "jackson-core" % jacksonVersion
+lazy val jackson =
+  "com.fasterxml.jackson.core" % "jackson-core" % jacksonVersion
 // lazy val slf4jApi = "org.slf4j" % "slf4j-api" % slf4jVersion
 // lazy val slf4jSimple = "org.slf4j" % "slf4j-simple" % slf4jVersion
 lazy val logback = "ch.qos.logback" % "logback-classic" % logbackVersion
@@ -71,18 +71,60 @@ lazy val scalatest = "org.scalatest" %% "scalatest" % scalaTestVersion % Test
 lazy val scalamock = "org.scalamock" %% "scalamock" % scalamockVersion % Test
 
 assembly / assemblyMergeStrategy := {
-  case PathList("META-INF", xs@_*) => MergeStrategy.discard
-  case "module-info.class" => MergeStrategy.discard
+  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+  case "module-info.class"           => MergeStrategy.discard
   case x =>
     val oldStrategy = (assembly / assemblyMergeStrategy).value
     oldStrategy(x)
 }
 
-lazy val root = project
-  .in(file("."))
+lazy val root = tlCrossRootProject
+  .aggregate(core, alternativeTextures, customFurniture, converters, cli)
+
+lazy val core = project
+  .in(file("modules/core"))
   .settings(
-    name := "Stardrop",
-    moduleName := "stardrop",
-    idePackagePrefix := Some("quincyjo.stardew"),
+    name := "Stardrop Core",
+    moduleName := "stardrop-core",
+    commonSettings
+  )
+
+lazy val alternativeTextures = project
+  .in(file("modules/alternative-textures"))
+  .dependsOn(core)
+  .settings(
+    libraryDependencies += decline,
+    name := "Stardrop Alternative Textures",
+    moduleName := "stardrop-alternative-textures",
+    commonSettings
+  )
+
+lazy val customFurniture = project
+  .in(file("modules/custom-furniture"))
+  .dependsOn(core)
+  .settings(
+    libraryDependencies += decline,
+    name := "Stardrop Custom Furniture",
+    moduleName := "stardrop-custom-furniture",
+    commonSettings
+  )
+
+lazy val converters = project
+  .in(file("modules/converters"))
+  .dependsOn(core, alternativeTextures, customFurniture)
+  .settings(
+    libraryDependencies += decline,
+    name := "Stardrop Converters",
+    moduleName := "stardrop-converters",
+    commonSettings
+  )
+
+lazy val cli = project
+  .in(file("modules/cli"))
+  .dependsOn(core, converters)
+  .settings(
+    libraryDependencies += decline,
+    name := "Stardrop Cli",
+    moduleName := "stardrop-cli",
     commonSettings
   )
