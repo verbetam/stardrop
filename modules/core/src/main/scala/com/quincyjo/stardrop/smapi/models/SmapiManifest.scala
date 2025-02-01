@@ -23,14 +23,14 @@ import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 
 final case class SmapiManifest(
-                                name: String,
-                                author: String,
-                                version: String,
-                                description: String,
-                                uniqueID: String,
-                                updateKeys: Option[Seq[String]] = None,
-                                contentPackFor: Option[Map[String, String]] = None
-                              )
+    name: String,
+    author: String,
+    version: String,
+    description: String,
+    uniqueID: String,
+    updateKeys: Option[Seq[String]] = None,
+    contentPackFor: Option[Map[String, String]] = None
+)
 
 object SmapiManifest {
   implicit val configuration: Configuration = DefaultConfig
