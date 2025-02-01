@@ -16,9 +16,6 @@
 
 package com.quincyjo.stardrop.encoding
 
-import JsonReader.JsonReaderException.messageWithLocation
-import JsonReader.{JsonReaderException, ReaderResult}
-
 import com.fasterxml.jackson.core.json.JsonReadFeature
 import com.fasterxml.jackson.core.{
   JsonFactory,
@@ -26,8 +23,12 @@ import com.fasterxml.jackson.core.{
   JsonParser,
   JsonToken
 }
+import com.quincyjo.stardrop.encoding.JsonReader.JsonReaderException.messageWithLocation
+import com.quincyjo.stardrop.encoding.JsonReader.{
+  JsonReaderException,
+  ReaderResult
+}
 import io.circe.{Decoder, Json}
-import org.slf4j.{Logger, LoggerFactory}
 
 import java.io.{File, InputStream}
 import java.net.URL
@@ -37,9 +38,6 @@ import scala.util.Try
 import scala.util.chaining.scalaUtilChainingOps
 
 class JsonReader(parser: JsonParser) {
-
-  private final val logger: Logger =
-    LoggerFactory.getLogger("JsonReader")
 
   private def parseObject: Json = parser.currentToken() match {
     case JsonToken.START_OBJECT =>

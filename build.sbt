@@ -66,7 +66,8 @@ val commonSettings = Seq(
   scalacOptions ++= Seq(
     "-feature",
     "-language:implicitConversions",
-    "-Werror"
+    "-Werror",
+    "-Xfatal-warnings"
   )
 )
 

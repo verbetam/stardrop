@@ -30,7 +30,7 @@ object Util {
     data.furnitureType match {
       case _: LampLike | _: BedLike =>
         data.tilesheetWidth * 2 * 16
-      case other =>
+      case _ =>
         (data.rotations match {
           case One => data.tilesheetWidth
           case Two | Four =>
@@ -50,7 +50,7 @@ object Util {
         ).max // TODO: Add to rotated bounding box height instead of regular bounding box width
     }) * 16
     data.furnitureType match {
-      case f: FurnitureFrontType => layerHeight * 2
+      case _: FurnitureFrontType => layerHeight * 2
       case _                     => layerHeight
     }
   }

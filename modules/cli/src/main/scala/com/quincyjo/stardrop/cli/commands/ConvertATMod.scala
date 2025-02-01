@@ -17,21 +17,20 @@
 package com.quincyjo.stardrop.cli.commands
 
 import cats.implicits.*
-import com.quincyjo.stardrop.cli.implicits.*
 import com.monovore.decline.*
 import com.quincyjo.stardrop.alternativetextures.AlternativeTexturesModWriter
+import com.quincyjo.stardrop.cli.implicits.*
 import com.quincyjo.stardrop.cli.models.ModType
 import com.quincyjo.stardrop.content.models.FurnitureData
-import com.quincyjo.stardrop.customfurniture.CustomFurnitureModReader
-import org.slf4j.{Logger, LoggerFactory}
 import com.quincyjo.stardrop.converters.AlternativeTexturesSpriteConverter.AlternativeTexturesSpriteConverterOptions
+import com.quincyjo.stardrop.converters.CustomFurnitureSpriteExtractor.SpriteExtractorOptions
 import com.quincyjo.stardrop.converters.{
   AlternativeTexturesConverter,
   AlternativeTexturesSpriteConverter,
   CustomFurnitureMatcher,
   CustomFurnitureSpriteExtractor
 }
-import com.quincyjo.stardrop.converters.CustomFurnitureSpriteExtractor.SpriteExtractorOptions
+import com.quincyjo.stardrop.customfurniture.CustomFurnitureModReader
 import com.quincyjo.stardrop.encoding.JsonReader
 
 import scala.reflect.io.{Directory, Path}
@@ -45,8 +44,6 @@ final case class ConvertATMod(
     spriteExtractionOptions: SpriteExtractorOptions,
     analyzeOnly: Boolean
 ) {
-
-  private val logger: Logger = LoggerFactory.getLogger(classOf[ConvertATMod])
 
   def execute(): Unit = {
 

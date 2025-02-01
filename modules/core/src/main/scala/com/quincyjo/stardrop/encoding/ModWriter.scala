@@ -26,31 +26,31 @@ import java.io.FileOutputStream
 import javax.imageio.ImageIO
 import scala.reflect.io.{Directory, File, Path}
 
-trait ModWriter[T] {
+trait ModWriter[ModType] {
 
   def logger: Logger
 
   final val jsonPrinter: Printer = Printer.spaces2.copy(dropNullValues = true)
 
-  def writeManifest(in: Directory, manifest: SmapiManifest): Unit =
+  def writeManifest(in: Directory, manifest: SmapiManifest): Int =
     writeAsJson(in, "manifest", manifest)
 
-  def writeJson(file: File, json: Json): Unit = {
+  def writeJson(file: File, json: Json): Int = {
     logger.debug(s"Writing ${file.name}")
     new FileOutputStream(file.jfile).getChannel
       .write(jsonPrinter.printToByteBuffer(json.deepDropNullValues))
   }
 
-  def writeJson(path: Path, json: Json): Unit =
+  def writeJson(path: Path, json: Json): Int =
     writeJson(ensureExtension(path, "json").createFile(), json)
 
-  def writeJson(in: Directory, name: String, json: Json): Unit =
+  def writeJson(in: Directory, name: String, json: Json): Int =
     writeJson(in / name, json)
 
-  def writeAsJson[T: Encoder](path: Directory, name: String, t: T): Unit =
+  def writeAsJson[T: Encoder](path: Directory, name: String, t: T): Int =
     writeJson(path, name, t.asJson)
 
-  def writeImage(path: Path, image: BufferedImage, format: String): Unit = {
+  def writeImage(path: Path, image: BufferedImage, format: String): Boolean = {
     logger.debug(s"Writing ${path.name}")
     ImageIO.write(image, format, sanitizePath(path).createFile().jfile)
   }
@@ -60,7 +60,7 @@ trait ModWriter[T] {
       name: String,
       image: BufferedImage,
       format: String = "png"
-  ): Unit =
+  ): Boolean =
     writeImage(ensureExtension(in / name, format), image, format)
 
   def sanitizePath(path: Path): Path =

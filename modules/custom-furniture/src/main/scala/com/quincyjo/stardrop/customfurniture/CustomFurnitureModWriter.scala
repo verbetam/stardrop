@@ -27,7 +27,7 @@ class CustomFurnitureModWriter(mod: CustomFurnitureMod)
   override val logger: Logger =
     LoggerFactory.getLogger("CustomFurnitureModWriter")
 
-  def writeManifest(in: Directory): Unit =
+  def writeManifest(in: Directory): Int =
     writeAsJson(in, "manifest", mod.manifest)
 
   override def writeTo(root: Directory): Unit = {

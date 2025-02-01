@@ -44,7 +44,7 @@ class AlternativeTexturesSpriteConverter(
       sprite: Sprite
   ): Boolean =
     customFurniture.`type` match {
-      case hasFront: FurnitureType.FurnitureFrontType =>
+      case _: FurnitureType.FurnitureFrontType =>
         sprite.heightInTiles == customFurniture.spriteHeight
       case _ =>
         false
