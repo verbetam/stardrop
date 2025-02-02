@@ -31,7 +31,13 @@ class CustomFurnitureModWriter(mod: CustomFurnitureMod)
     writeAsJson(in, "manifest", mod.manifest)
 
   override def writeTo(root: Directory): Unit = {
-    if (!root.exists) root.createDirectory()
+    if (!root.exists) {
+      logger.info(
+        s"Target directory does not exist. Creating directory ${root.name}"
+      )
+      root.createDirectory()
+    }
+    logger.info(s"Writing mod ${mod.manifest.name} to ${root.name}")
     writeManifest(root)
     writeAsJson(
       root,

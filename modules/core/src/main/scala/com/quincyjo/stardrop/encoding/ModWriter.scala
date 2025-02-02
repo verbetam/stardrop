@@ -25,6 +25,7 @@ import java.awt.image.BufferedImage
 import java.io.FileOutputStream
 import javax.imageio.ImageIO
 import scala.reflect.io.{Directory, File, Path}
+import scala.util.chaining.scalaUtilChainingOps
 
 /** Trait defining a writer for a SMAPI mod.
   * @tparam ModType
@@ -62,6 +63,9 @@ trait ModWriter[ModType] {
     logger.debug(s"Writing ${file.name}")
     new FileOutputStream(file.jfile).getChannel
       .write(jsonPrinter.printToByteBuffer(json.deepDropNullValues))
+      .tap { bytesWritten =>
+        logger.debug(s"Successfully Wrote $bytesWritten bytes to ${file.name}")
+      }
   }
 
   /** Writes the given JSON to the given path.
