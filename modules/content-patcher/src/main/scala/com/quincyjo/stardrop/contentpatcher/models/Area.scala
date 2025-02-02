@@ -16,15 +16,22 @@
 
 package com.quincyjo.stardrop.contentpatcher.models
 
+import com.quincyjo.stardrop.encoding.JsonFormat.DefaultConfig
+
 import io.circe.Codec
-import io.circe.generic.extras.semiauto.deriveEnumerationCodec
+import io.circe.generic.extras.Configuration
+import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 
-sealed trait PatchMode
+final case class Area(
+    x: Int,
+    y: Int,
+    width: Int,
+    height: Int
+)
 
-object PatchMode {
-  final case object Replace extends PatchMode
+object Area {
 
-  final case object Overlay extends PatchMode
+  implicit val configuration: Configuration = DefaultConfig
 
-  implicit val codecForPatchMode: Codec[PatchMode] = deriveEnumerationCodec
+  implicit val codec: Codec[Area] = deriveConfiguredCodec
 }

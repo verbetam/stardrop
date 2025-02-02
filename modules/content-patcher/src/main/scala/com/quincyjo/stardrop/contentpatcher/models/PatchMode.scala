@@ -16,21 +16,16 @@
 
 package com.quincyjo.stardrop.contentpatcher.models
 
-import com.quincyjo.stardrop.encoding.JsonFormat.DefaultConfig
+import io.circe.Codec
+import io.circe.generic.extras.semiauto.deriveEnumerationCodec
 
-import io.circe.generic.extras.Configuration
-import io.circe.generic.extras.semiauto.deriveConfiguredCodec
-import io.circe.{Codec, JsonObject}
+sealed trait PatchMode
 
-final case class Content(
-    format: String,
-    changes: Vector[Action],
-    dynamicTokens: Option[Vector[DynamicToken]] = None,
-    aliasTokenNames: Option[Map[String, String]] = None,
-    configSchema: Option[JsonObject] = None
-)
+object PatchMode {
 
-object Content {
-  implicit val configuration: Configuration = DefaultConfig
-  implicit val codec: Codec.AsObject[Content] = deriveConfiguredCodec
+  final case object Replace extends PatchMode
+
+  final case object Overlay extends PatchMode
+
+  implicit val codecForPatchMode: Codec[PatchMode] = deriveEnumerationCodec
 }

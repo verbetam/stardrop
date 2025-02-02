@@ -117,6 +117,17 @@ lazy val customFurniture = project
     commonSettings
   )
 
+lazy val contentPatcher = project
+  .disablePlugins(sbtassembly.AssemblyPlugin)
+  .in(file("modules/content-patcher"))
+  .dependsOn(core)
+  .settings(
+    libraryDependencies += decline,
+    name := "Stardrop Content Patcher",
+    moduleName := "stardrop-content-patcher",
+    commonSettings
+  )
+
 lazy val converters = project
   .disablePlugins(sbtassembly.AssemblyPlugin)
   .in(file("modules/converters"))

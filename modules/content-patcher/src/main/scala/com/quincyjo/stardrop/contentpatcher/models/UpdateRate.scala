@@ -23,6 +23,7 @@ import io.circe.{Codec, Decoder, Encoder}
 sealed trait UpdateRate
 
 object UpdateRate {
+ 
   sealed trait SingleRate extends UpdateRate {
 
     def +(that: SingleRate): Multiple = Multiple(this, that)
@@ -78,6 +79,7 @@ object UpdateRate {
     case Multiple(updateRates) =>
       updateRates.map(_.asJson.asString.get).mkString(", ").asJson
   }
+
   implicit val decodeUpdateRate: Decoder[UpdateRate] = Decoder[String].emap {
     string =>
       val json = string.asJson

@@ -28,8 +28,10 @@ import io.circe.generic.extras.semiauto.{
 sealed trait TextOperation
 
 object TextOperation {
+
   implicit val configuration: Configuration =
     DefaultConfig.withDiscriminator("Operation")
+
   implicit val codec: Codec[TextOperation] = deriveConfiguredCodec
 
   type BreadcrumbPath = Vector[String]
@@ -43,7 +45,9 @@ object TextOperation {
   ) extends TextOperation
 
   object Append {
+
     implicit val configuration: Configuration = DefaultConfig
+
     implicit val codec: Codec[Append] = deriveConfiguredCodec
   }
 
@@ -54,7 +58,9 @@ object TextOperation {
   ) extends TextOperation
 
   object Prepend {
+
     implicit val configuration: Configuration = DefaultConfig
+
     implicit val codec: Codec[Prepend] = deriveConfiguredCodec
   }
 
@@ -66,13 +72,16 @@ object TextOperation {
   ) extends TextOperation
 
   object RemoveDelimited {
+
     implicit val configuration: Configuration = DefaultConfig
+
     implicit val codec: Codec[RemoveDelimited] = deriveConfiguredCodec
   }
 
   sealed trait ReplaceMode
 
   object ReplaceMode {
+
     final case object First extends ReplaceMode
 
     final case object Last extends ReplaceMode

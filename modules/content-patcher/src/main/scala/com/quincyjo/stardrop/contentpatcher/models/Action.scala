@@ -38,7 +38,9 @@ object Action {
       extends Action
 
   object Load {
+
     implicit val config: Configuration = DefaultConfig
+
     implicit val codec: Codec[Load] = deriveConfiguredCodec
   }
 
@@ -55,7 +57,9 @@ object Action {
   ) extends Action
 
   object EditData {
+
     implicit val config: Configuration = DefaultConfig
+
     implicit val codec: Codec[EditData] = deriveConfiguredCodec
   }
 
@@ -71,7 +75,9 @@ object Action {
   ) extends Action
 
   object EditImage {
+
     implicit val config: Configuration = DefaultConfig
+
     implicit val codec: Codec[EditImage] = deriveConfiguredCodec
   }
 
@@ -87,7 +93,9 @@ object Action {
   ) extends Action
 
   object EditMap {
+
     implicit val config: Configuration = DefaultConfig
+
     implicit val codec: Codec[EditMap] = deriveConfiguredCodec
   }
 
@@ -99,8 +107,9 @@ object Action {
   ) extends Action
 
   object Include {
+
     implicit val config: Configuration = DefaultConfig
+
     implicit val codec: Codec[Include] = deriveConfiguredCodec
   }
-
 }
