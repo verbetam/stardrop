@@ -36,9 +36,56 @@ import java.nio.file.{Path => JPath}
 import scala.reflect.ClassTag
 import scala.util.Try
 import scala.util.chaining.scalaUtilChainingOps
+import scala.util.control.NoStackTrace
 
+// TODO: Remove exceptions and handle asynchronously with cats effect.
+/** A custom JSON reader that uses a configured Jackson parser under the hood.
+  * The reason for this is to allow options for non-strict parsing. This is
+  * because many JSONs for mods are handwritten, so things like comment strings
+  * (which are not valid JSON), trailing commas, etc. are common.
+  * @param parser
+  *   The Jackson exposing the input to parse.
+  */
 class JsonReader(parser: JsonParser) {
 
+  /** Parses a JSON object from the underlying input.
+    * @return
+    *   The parsed JSON object or an error.
+    */
+  def parse: ReaderResult[Json] =
+    Try {
+      try nextJson
+      finally parser.close()
+    }.toEither.left
+      .map(ex =>
+        JsonReaderException(
+          s"Failed ot read JSON from file",
+          parser.currentLocation(),
+          ex
+        )
+      )
+
+  /** Decodes the underlying input into a value of type `T`.
+    * @tparam T
+    *   The type to decode.
+    * @return
+    *   The decoded value or an error.
+    */
+  def decode[T: Decoder: ClassTag]: ReaderResult[T] =
+    parse.flatMap(_.as[T].left.map { decodingFailure =>
+      JsonReaderException(
+        s"Failed to decode json as ${implicitly[ClassTag[T]]} ",
+        cause = Some(decodingFailure)
+      )
+    })
+
+  /** Parses a JSON object from the current token.
+    * @return
+    *   The parsed JSON object.
+    */
+  @throws[JsonReaderException](
+    "If the current token is not a valid JSON object."
+  )
   private def parseObject: Json = parser.currentToken() match {
     case JsonToken.START_OBJECT =>
       val builder = Map.newBuilder[String, Json]
@@ -53,6 +100,13 @@ class JsonReader(parser: JsonParser) {
       )
   }
 
+  /** Parses a field name from the current token.
+    * @return
+    *   The parsed field name.
+    */
+  @throws[JsonReaderException](
+    "If the current token is not a valid field name."
+  )
   private def parseFieldName: String = parser.currentToken() match {
     case JsonToken.FIELD_NAME => parser.getValueAsString
     case otherToken =>
@@ -62,6 +116,13 @@ class JsonReader(parser: JsonParser) {
       )
   }
 
+  /** Parses a JSON array from the current token.
+    * @return
+    *   The parsed JSON array.
+    */
+  @throws[JsonReaderException](
+    "If the current token is not a valid JSON array."
+  )
   private def parseArray: Json = parser.currentToken() match {
     case JsonToken.START_ARRAY =>
       val builder = Vector.newBuilder[Json]
@@ -76,6 +137,13 @@ class JsonReader(parser: JsonParser) {
       )
   }
 
+  /** Parses a JSON value from the current token.
+    * @return
+    *   The parsed JSON value.
+    */
+  @throws[JsonReaderException](
+    "If the current token is not a valid JSON value."
+  )
   private def parseCurrent: Json = parser.currentToken() match {
     case JsonToken.START_OBJECT     => parseObject
     case JsonToken.START_ARRAY      => parseArray
@@ -95,37 +163,32 @@ class JsonReader(parser: JsonParser) {
       )
   }
 
+  /** Advances the parser to the next JSON token and then parses it as a JSON.
+    * Specifically, this is used on initial parse to advance to the first token.
+    * @return
+    *   The parsed JSON object.
+    */
+  @throws[JsonReaderException](
+    "If the current token is not a valid JSON object."
+  )
   private def nextJson: Json = {
     parser.nextToken()
     parseCurrent
   }
-
-  def parse: ReaderResult[Json] =
-    Try {
-      try nextJson
-      finally parser.close()
-    }.toEither.left
-      .map(ex =>
-        JsonReaderException(
-          s"Failed ot read JSON from file",
-          parser.currentLocation(),
-          ex
-        )
-      )
-
-  def decode[T: Decoder: ClassTag]: ReaderResult[T] =
-    parse.flatMap(_.as[T].left.map { decodingFailure =>
-      JsonReaderException(
-        s"Failed to decode json as ${implicitly[ClassTag[T]]} ",
-        cause = Some(decodingFailure)
-      )
-    })
 }
 
 object JsonReader {
 
   type ReaderResult[T] = Either[JsonReaderException, T]
 
+  /** Describes a failure to parse JSON value.
+    * @param message
+    *   A message describing the failure.
+    * @param location
+    *   The location of the failure.
+    * @param cause
+    *   The underlying cause of the failure, if defined.
+    */
   final case class JsonReaderException(
       message: String,
       location: Option[JsonLocation] = None,
@@ -134,12 +197,31 @@ object JsonReader {
         location.fold(message)(messageWithLocation(message, _)),
         cause.orNull
       )
+      with NoStackTrace
 
   object JsonReaderException {
 
+    /** Creates a message with location information.
+      * @param message
+      *   The message.
+      * @param location
+      *   The location of the error.
+      * @return
+      *   The message with location information
+      */
     def messageWithLocation(message: String, location: JsonLocation): String =
       s"$message @ ${location.offsetDescription()}"
 
+    /** Creates a [[JsonReaderException]] with location information.
+      * @param message
+      *   The message describing the failure.
+      * @param location
+      *   The location of the failure.
+      * @param cause
+      *   The underlying cause of the failure.
+      * @return
+      *   The [[JsonReaderException]].
+      */
     def apply(
         message: String,
         location: JsonLocation,
@@ -166,16 +248,17 @@ object JsonReader {
   def apply(file: scala.reflect.io.File): JsonReader =
     new JsonReader(jsonFactory.createParser(file.jfile))
 
-  final val enabledFeatures: Iterable[JsonParser.Feature] = Vector(
+  private final val enabledFeatures: Iterable[JsonParser.Feature] = Vector(
     JsonParser.Feature.ALLOW_COMMENTS,
     JsonParser.Feature.IGNORE_UNDEFINED,
     JsonParser.Feature.AUTO_CLOSE_SOURCE,
     JsonReadFeature.ALLOW_TRAILING_COMMA.mappedFeature()
   )
 
-  final val disabledFeatures: Iterable[JsonParser.Feature] = Vector.empty
+  private final val disabledFeatures: Iterable[JsonParser.Feature] =
+    Vector.empty
 
-  final val jsonFactory: JsonFactory =
+  private final val jsonFactory: JsonFactory =
     new JsonFactory().tap { factory =>
       enabledFeatures.map(factory.enable)
       disabledFeatures.map(factory.disable)

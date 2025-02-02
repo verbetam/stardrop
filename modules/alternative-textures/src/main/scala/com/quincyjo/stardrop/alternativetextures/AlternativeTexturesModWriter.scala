@@ -29,7 +29,7 @@ import scala.reflect.io.Directory
 class AlternativeTexturesModWriter(mod: AlternativeTexturesMod)
     extends ModWriter[AlternativeTexturesMod] {
 
-  override val logger: Logger =
+  override protected val logger: Logger =
     LoggerFactory.getLogger("AlternativeTexturesModWriter")
 
   def writeTo(root: Directory): Unit = {

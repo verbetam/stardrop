@@ -19,170 +19,242 @@ package com.quincyjo.stardrop.content.models
 import io.circe.generic.extras.Configuration
 import io.circe.{Decoder, Encoder}
 
+/** ADT for the different furniture types that exist in Stardew. These contain
+  * information about that furniture type such as the default tilesheet and
+  * bounding box sizes. This is useful for inferring size information for a
+  * piece of furniture that does not have it explicitly stated. This is used for
+  * finding appropriate matches across textures to furniture.
+  */
 sealed trait FurnitureType {
+
+  /** The default tilesheet size for this furniture type.
+    * @return
+    *   Default tilesheet size as a [[FurnitureSize.Size]].
+    */
   def defaultTilesheetSize: Option[FurnitureSize.Size]
 
+  /** The default bounding box size for this furniture type.
+    * @return
+    *   Default bounding box size as a [[FurnitureSize.Size]].
+    */
   def defaultBoundingBoxSize: Option[FurnitureSize.Size]
 
+  /** The default rotated bounding box size for this furniture type. By default,
+    * this is inferred from the default bounding box size via
+    * [[com.quincyjo.stardrop.content.models.FurnitureSize.Size.inverse]], but
+    * may be overridden when necessary such as in armchair furniture.
+    * @return
+    *   Default rotated bounding box size as a [[FurnitureSize.Size]].
+    */
   def defaultRotatedBoundingBoxSize: Option[FurnitureSize.Size] =
     defaultBoundingBoxSize.map(_.inverse)
 }
 
 object FurnitureType {
 
-  /** Furniture type that has a furniture front layer.
+  /** Mixin type that has a furniture front layer, meaning that there is a
+    * separate sprite for the front layer which is overlayed in front of the
+    * player. This allows for the arms and backs of furniture such as couches to
+    * be visible in front of the player sprite. Such as a couch which is
+    * oriented with the seat pointing upward, when the player sits in it, the
+    * back of the couch is displayed on top of the player sprite.
     */
-  sealed trait FurnitureFrontType extends FurnitureType
+  sealed trait HasFrontLayer { self: FurnitureType => }
 
-  final case object Chair extends FurnitureFrontType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+  final case object Chair extends FurnitureType with HasFrontLayer {
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 2))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 1))
   }
 
-  final case object Bench extends FurnitureFrontType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+  final case object Bench extends FurnitureType with HasFrontLayer {
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 2))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 1))
   }
 
-  final case object Armchair extends FurnitureFrontType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+  final case object Armchair extends FurnitureType with HasFrontLayer {
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 2))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 1))
+
     override val defaultRotatedBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 1))
   }
 
-  final case object Couch extends FurnitureFrontType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+  final case object Couch extends FurnitureType with HasFrontLayer {
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(3, 2))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(3, 1))
+
     override val defaultRotatedBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 2))
   }
 
   final case object Dresser extends FurnitureType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 2))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 1))
   }
 
   final case object LongTable extends FurnitureType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(5, 3))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(5, 2))
+
     override val defaultRotatedBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 4))
   }
 
   final case object Table extends FurnitureType {
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 2))
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 3))
   }
 
   final case object Bookcase extends FurnitureType {
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 1))
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 3))
   }
 
   final case object Painting extends FurnitureType {
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 2))
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 2))
   }
 
   sealed trait LampLike extends FurnitureType
 
   final case object Lamp extends LampLike {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 3))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 1))
   }
 
   final case object Sconce extends LampLike {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 2))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 2))
   }
 
   final case object Rug extends FurnitureType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(3, 2))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(3, 2))
   }
 
   final case object Window extends FurnitureType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 2))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 2))
   }
 
   final case object Fireplace extends FurnitureType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 5))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 1))
   }
 
   sealed trait BedLike extends FurnitureType
 
   final case object Bed extends BedLike {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 3))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 4))
   }
 
   final case object BedDouble extends BedLike {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(3, 3))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(3, 4))
   }
 
   final case object BedChild extends BedLike {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 3))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(2, 4))
   }
 
   final case object Torch extends FurnitureType {
-    val defaultTilesheetSize: Option[FurnitureSize.Size] =
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 2))
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] =
       Some(FurnitureSize.Size(1, 1))
   }
 
   final case object Fishtank extends FurnitureType { // No Defaults
-    val defaultTilesheetSize: Option[FurnitureSize.Size] = None
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] = None
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] = None
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] = None
   }
 
   final case object Decor extends FurnitureType { // No defaults
-    val defaultTilesheetSize: Option[FurnitureSize.Size] = None
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] = None
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] = None
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] = None
   }
 
   final case object Other extends FurnitureType { // Only a CF type
-    val defaultTilesheetSize: Option[FurnitureSize.Size] = None
-    val defaultBoundingBoxSize: Option[FurnitureSize.Size] = None
+
+    override val defaultTilesheetSize: Option[FurnitureSize.Size] = None
+
+    override val defaultBoundingBoxSize: Option[FurnitureSize.Size] = None
   }
 
   def fromString(string: String): Option[FurnitureType] = string match {
@@ -240,7 +312,7 @@ object FurnitureType {
       case Torch     => "torch"
       case Sconce    => "sconce"
       case Fishtank  => "fishtank"
-      case Decor     => "decor"
+      case Decor     => "decorFurnitureFrontType"
       case Other     => "other"
     }
 

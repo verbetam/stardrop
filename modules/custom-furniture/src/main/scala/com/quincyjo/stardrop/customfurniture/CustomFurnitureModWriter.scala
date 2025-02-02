@@ -24,7 +24,7 @@ import scala.reflect.io.Directory
 class CustomFurnitureModWriter(mod: CustomFurnitureMod)
     extends ModWriter[CustomFurnitureMod] {
 
-  override val logger: Logger =
+  override protected val logger: Logger =
     LoggerFactory.getLogger("CustomFurnitureModWriter")
 
   def writeManifest(in: Directory): Int =
@@ -36,7 +36,7 @@ class CustomFurnitureModWriter(mod: CustomFurnitureMod)
     writeAsJson(
       root,
       "content",
-      mod.pack.copy(furniture = mod.pack.furniture.sortBy(_.id))
+      mod.sortPack
     )
     mod.tileSheets.foreach { tilesheet =>
       writeImage(root, tilesheet.name, tilesheet.image)

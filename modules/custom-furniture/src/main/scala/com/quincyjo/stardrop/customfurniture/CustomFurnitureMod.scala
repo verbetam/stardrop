@@ -20,8 +20,16 @@ import com.quincyjo.stardrop.customfurniture.models.CustomFurniturePack
 import com.quincyjo.stardrop.shared.models.TileSheet
 import com.quincyjo.stardrop.smapi.models.SmapiManifest
 
-case class CustomFurnitureMod(
+final case class CustomFurnitureMod(
     manifest: SmapiManifest,
     pack: CustomFurniturePack,
     tileSheets: Vector[TileSheet]
-)
+) {
+
+  /** Returns a copy of the pack with the furniture sorted by ID.
+    * @return
+    *   A copy of the pack with the furniture sorted by ID
+    */
+  def sortPack: CustomFurniturePack =
+    pack.copy(furniture = pack.furniture.sortBy(_.id))
+}

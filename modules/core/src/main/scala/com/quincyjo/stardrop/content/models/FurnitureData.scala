@@ -19,6 +19,24 @@ package com.quincyjo.stardrop.content.models
 import cats.syntax.traverse.*
 import io.circe.Decoder
 
+/** Describes the data associated with a piece of furniture.
+  * @param id
+  *   The ID of the furniture.
+  * @param name
+  *   The name of the furniture.
+  * @param furnitureType
+  *   The type of the furniture
+  * @param tilesheetSize
+  *   The size of the tilesheet.
+  * @param boundingBoxSize
+  *   The size of the bounding box.
+  * @param rotations
+  *   The number of rotations.
+  * @param price
+  *   The price of the furniture.
+  * @param displayName
+  *   The display name of the furniture, if defined.
+  */
 case class FurnitureData(
     id: String,
     name: String,
@@ -33,26 +51,56 @@ case class FurnitureData(
   override def toString: String =
     s"$name/$furnitureType/$tilesheetSize/$boundingBoxSize/$rotations/$price"
 
+  /** Resolves the bounding box width to the defined bounding box width if
+    * defined, or the default bounding box width if not.
+    * @return
+    *   The tile width of the bounding box.
+    */
   def boundingBoxWidth: Int =
     boundingBoxSize.asSize
       .fold(furnitureType.defaultBoundingBoxSize.get.width)(_.width)
 
+  /** Resolves the bounding box height to the defined bounding box height if
+    * defined, or the default bounding box height if not.
+    * @return
+    *   The tile height of the bounding box.
+    */
   def boundingBoxHeight: Int =
     boundingBoxSize.asSize
       .fold(furnitureType.defaultBoundingBoxSize.get.height)(_.height)
 
+  /** Resolves the tilesheet width to the defined tilesheet width if defined, or
+    * the default tilesheet width if not.
+    * @return
+    *   The tile width of the tilesheet.
+    */
   def tilesheetWidth: Int =
     tilesheetSize.asSize
       .fold(furnitureType.defaultTilesheetSize.get.width)(_.width)
 
+  /** Resolves the tilesheet height to the defined tilesheet height if defined,
+    * or the default tilesheet height if not.
+    * @return
+    *   The tile height of the tilesheet.
+    */
   def tilesheetHeight: Int =
     tilesheetSize.asSize
       .fold(furnitureType.defaultTilesheetSize.get.height)(_.height)
 
+  /** Resolves the rotated bounding box width to the defined rotated bounding
+    * box width if defined, or the default rotated bounding box width if not.
+    * @return
+    *   The tile width of the rotated bounding box.
+    */
   def rotatedBoundingBoxWidth: Int =
     boundingBoxSize.asSize
       .fold(furnitureType.defaultRotatedBoundingBoxSize.get.width)(_.height)
 
+  /** Resolves the rotated bounding box height to the defined rotated bounding
+    * box height if defined, or the default rotated bounding box height if not.
+    * @return
+    *   The tile height of the rotated bounding box.
+    */
   def rotatedBoundingBoxHeight: Int =
     boundingBoxSize.asSize
       .fold(furnitureType.defaultRotatedBoundingBoxSize.get.height)(_.width)
@@ -60,6 +108,15 @@ case class FurnitureData(
 
 object FurnitureData {
 
+  /** Attempts to parse furniture data from a string. Returns None if the string
+    * is not a valid furniture data encoding.
+    * @param id
+    *   The ID of the furniture to parse.
+    * @param string
+    *   The string to parse.
+    * @return
+    *   The parsed furniture data or None if it is not valid.
+    */
   def fromString(id: String, string: String): Option[FurnitureData] = {
     val values = string.split('/').toList
     for {

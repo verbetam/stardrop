@@ -19,7 +19,7 @@ package com.quincyjo.stardrop.alternativetextures
 import com.quincyjo.stardrop.content.models.{FurnitureData, Rotations}
 import com.quincyjo.stardrop.content.models.FurnitureType.{
   BedLike,
-  FurnitureFrontType,
+  HasFrontLayer,
   LampLike
 }
 import com.quincyjo.stardrop.content.models.Rotations.{Four, One, Two}
@@ -50,8 +50,8 @@ object Util {
         ).max // TODO: Add to rotated bounding box height instead of regular bounding box width
     }) * 16
     data.furnitureType match {
-      case _: FurnitureFrontType => layerHeight * 2
-      case _                     => layerHeight
+      case _: HasFrontLayer => layerHeight * 2
+      case _                => layerHeight
     }
   }
 }

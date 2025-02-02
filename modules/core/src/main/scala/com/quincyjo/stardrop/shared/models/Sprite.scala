@@ -20,12 +20,49 @@ import TileSheet.{TILE_HEIGHT, TILE_WIDTH}
 
 import java.awt.image.BufferedImage
 
-case class Sprite(image: BufferedImage) {
+/** Describes a single sprite, that is to say an image which is typically
+  * associated with a single item.
+  * @param image
+  *   The image of the sprite.
+  */
+final case class Sprite(image: BufferedImage) {
 
-  val widthInPixels: Int = image.getWidth
-  val heightInPixels: Int = image.getHeight
-  val widthInTiles: Int = widthInPixels / TILE_WIDTH
-  val heightInTiles: Int = heightInPixels / TILE_HEIGHT
+  /** The width of the sprite in pixels.
+    */
+  val widthInPixels: Int =
+    image.getWidth
+
+  /** The height of the sprite in pixels.
+    */
+  val heightInPixels: Int =
+    image.getHeight
+
+  /** The width of the sprite in tiles.
+    */
+  val widthInTiles: Int =
+    widthInPixels / TILE_WIDTH
+
+  /** The height of the sprite in tiles.
+    */
+  val heightInTiles: Int =
+    heightInPixels / TILE_HEIGHT
 }
 
-object Sprite {}
+object Sprite {
+
+  /** Constructs a sprite from an image only if the image is of valid size. This
+    * is determined by it having both a width and height of at least one tile
+    * and having a height and width that can be exactly measured in tiles. even
+    * @param image
+    *   The image containing the sprite.
+    * @return
+    *   An option containing the sprite, if the image is valid, otherwise None
+    */
+  def fromImage(image: BufferedImage): Option[Sprite] =
+    Option.when(
+      image.getWidth > 0 && image.getHeight > 0 &&
+        image.getWidth % TILE_WIDTH == 0 && image.getHeight % TILE_HEIGHT == 0
+    ) {
+      Sprite(image)
+    }
+}

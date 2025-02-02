@@ -20,7 +20,7 @@ import cats.data.NonEmptySeq
 import com.quincyjo.stardrop.content.models.FurnitureData
 import com.quincyjo.stardrop.content.models.FurnitureType.{
   BedLike,
-  FurnitureFrontType,
+  HasFrontLayer,
   Painting
 }
 import com.quincyjo.stardrop.customfurniture.models.CustomFurniture
@@ -90,7 +90,7 @@ object CustomFurnitureMatcher {
       customFurniture.width == data.tilesheetWidth &&
       customFurniture.height == data.tilesheetHeight &&
       (customFurniture.`type` match {
-        case _: FurnitureFrontType | Painting | _: BedLike => true
+        case _: HasFrontLayer | Painting | _: BedLike => true
         case _ =>
           customFurniture.boxWidth == data.boundingBoxWidth &&
             customFurniture.boxHeight == data.boundingBoxHeight

@@ -16,26 +16,56 @@
 
 package com.quincyjo.stardrop.content.models
 
+/** Describes the number of rotations for a piece of furniture. This can be one,
+  * where it cannot be rotated. 2, where it can be flipped, or 4, where it can
+  * be rotated 360 degrees by 90 degrees increments.
+  */
 sealed trait Rotations {
 
+  /** The number of rotations.
+    * @return
+    *   The number of rotations as an integer.
+    */
   def value: Int
 
+  /** The string representation of the number of rotations as stored in game
+    * data.
+    * @return
+    *   The string representation of the number of rotations.
+    */
   override final def toString: String = value.toString
 }
 
 object Rotations {
+
+  /** A single rotation, IE, the furniture cannot be rotated.
+    */
   final case object One extends Rotations {
-    val value = 1
+
+    override val value = 1
   }
 
+  /** Two rotations, IE, the furniture can be flipped.
+    */
   final case object Two extends Rotations {
-    val value = 2
+    override val value = 2
   }
 
+  /** Four rotations, IE, the furniture can be rotated 360 degrees by 90 degree
+    * increments.
+    */
   final case object Four extends Rotations {
-    val value = 4
+    override val value = 4
   }
 
+  /** Converts an integer to a
+    * [[com.quincyjo.stardrop.content.models.Rotations]], if possible.
+    * @param int
+    *   The integer to convert.
+    * @return
+    *   The [[com.quincyjo.stardrop.content.models.Rotations]] if valid or None
+    *   otherwise.
+    */
   def fromInt(int: Int): Option[Rotations] = int match {
     case 1 => Some(One)
     case 2 => Some(Two)
@@ -43,6 +73,14 @@ object Rotations {
     case _ => None
   }
 
+  /** Converts a string to a [[com.quincyjo.stardrop.content.models.Rotations]],
+    * if possible.
+    * @param string
+    *   The string to convert.
+    * @return
+    *   The [[com.quincyjo.stardrop.content.models.Rotations]] if valid or None
+    *   otherwise.
+    */
   def fromString(string: String): Option[Rotations] =
     string.toIntOption.flatMap(fromInt)
 }

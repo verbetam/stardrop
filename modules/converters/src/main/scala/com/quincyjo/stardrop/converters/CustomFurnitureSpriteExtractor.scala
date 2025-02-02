@@ -66,7 +66,7 @@ class CustomFurnitureSpriteExtractor(
         customFurniture.index,
         customFurniture.spriteWidth,
         customFurniture.`type` match {
-          case _: FurnitureType.FurnitureFrontType
+          case _: FurnitureType.HasFrontLayer
               if options.takeFurnitureFrontFromTilesheet =>
             customFurniture.spriteHeight * 2
           case _ =>

@@ -58,7 +58,7 @@ The Cli module contains the command line interface for Stardrop and is not avail
 the [releases](https://github.com/quincyjo/stardrop/releases)
 page for the latest version or [built it from source](#building-cli-from-source) yourself.
 
-## [Building CLI From Source]
+## Building CLI From Source
 
 The SBT project comes with the [sbt-assembly](https://github.com/sbt/sbt-assembly) plugin which allows for the building
 of a fat JAR file.

@@ -22,6 +22,22 @@ import io.circe.Codec
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 
+/** Represents a manifest for a mod in the SMAPI format.
+  * @param name
+  *   The name of the mod.
+  * @param author
+  *   The author of the mod.
+  * @param version
+  *   The version of the mod.
+  * @param description
+  *   A description of the mod.
+  * @param uniqueID
+  *   The unique ID of the mod.
+  * @param updateKeys
+  *   // TODO: Remember what this is exacctly.
+  * @param contentPackFor
+  *   // TODO: Remember what this is exacctly.
+  */
 final case class SmapiManifest(
     name: String,
     author: String,
@@ -33,6 +49,8 @@ final case class SmapiManifest(
 )
 
 object SmapiManifest {
-  implicit val configuration: Configuration = DefaultConfig
+
+  private implicit val configuration: Configuration = DefaultConfig
+
   implicit val codec: Codec[SmapiManifest] = deriveConfiguredCodec
 }

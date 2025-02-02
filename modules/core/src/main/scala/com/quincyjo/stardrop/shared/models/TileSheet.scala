@@ -24,19 +24,57 @@ import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
 import scala.reflect.io.File
 
-case class TileSheet private (
+// TODO: Add error handling for out of range.
+/** Represents a tilesheet containing one or more sprites. Tiles within a
+  * Tilesheet are indexed from 0 from left to right in rows.
+  * @param name
+  *   The name of the tile sheet.
+  * @param image
+  *   The image of the tile sheet.
+  * @param widthInTiles
+  *   The width of the tile sheet in tiles.
+  * @param heightInTiles
+  *   The height of the tile sheet in tiles.
+  */
+final case class TileSheet private (
     name: String,
     image: BufferedImage,
     widthInTiles: Int,
     heightInTiles: Int
 ) {
 
+  /** Determines the total number of tiles in the tile sheet.
+    */
   val tileCount: Int = heightInTiles * widthInTiles
 
-  def linearIndexToXIndex(index: Int): Int = index % widthInTiles
+  /** Determines the x index of the tile at the given index.
+    * @param index
+    *   The index of the desired tile.
+    * @return
+    *   The x index of the tile.
+    */
+  def linearIndexToXIndex(index: Int): Int =
+    index % widthInTiles
 
-  def linearIndexToYIndex(index: Int): Int = index / widthInTiles
+  /** Determines the y index of the tile at the given index.
+    * @param index
+    *   The index of the desired tile.
+    * @return
+    *   The y index of the tile.
+    */
+  def linearIndexToYIndex(index: Int): Int =
+    index / widthInTiles
 
+  /** Retrieves the sprite at the given index with the given width and height.
+    * @param index
+    *   The index of the sprite, taken as the top left corner.
+    * @param width
+    *   The width of the sprite in tiles.
+    * @param height
+    *   The height of the sprite in tiles.
+    * @return
+    *   The sprite at the given index.
+    */
   def getSprite(index: Int, width: Int, height: Int): Sprite =
     Sprite(
       image.getSubimage(
@@ -47,6 +85,10 @@ case class TileSheet private (
       )
     )
 
+  /** Converts the tile sheet to a sprite.
+    * @return
+    *   The sprite.
+    */
   def toSprite: Sprite =
     Sprite(image)
 }
@@ -55,7 +97,12 @@ object TileSheet {
 
   private val logger: Logger = LoggerFactory.getLogger("Tilesheet")
 
+  /** The height of a tile in pixels.
+    */
   final val TILE_HEIGHT = 16
+
+  /** The width of a tile in pixels.
+    */
   final val TILE_WIDTH = 16
 
   def fromFile(file: File): Either[String, TileSheet] =
@@ -64,6 +111,15 @@ object TileSheet {
   def fromFile(file: java.io.File): Either[String, TileSheet] =
     fromImage(file.getName, ImageIO.read(file))
 
+  /** Creates a tile sheet from an image. If the image is not divisible into
+    * tiles, then an error string is returned in the left instead.
+    * @param name
+    *   The name of the tilesheet.
+    * @param image
+    *   The image of the tilesheet.
+    * @return
+    *   Either the tile sheet or an error string.
+    */
   def fromImage(
       name: String,
       image: BufferedImage
