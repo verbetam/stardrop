@@ -74,7 +74,7 @@ of a fat JAR file.
 This can be built by running the following SBT command from within the project directory. The resulting JAR file will be
 located at `./modules/cli/target/scala-2.13/stardrop.jar` assuming the CWD is the project root directory.
 
-```
+```shell
 sbt cli/assembly
 ```
 
@@ -82,7 +82,7 @@ sbt cli/assembly
 
 See the available commands and their options.
 
-```
+```shell
 java -jar ./stardrop.jar --help
 ```
 
@@ -93,7 +93,7 @@ java -jar ./stardrop.jar --help
 By default, this will output the exploded mod into an `[root director name] exploded` subdirectory of the target mod
 root.
 
-```
+```shell
 java -jar ./stardrop.jar explode \
 "path/to/mod/root" \
 --expand-furniture-front --copy-fourth-rotation
@@ -101,7 +101,7 @@ java -jar ./stardrop.jar explode \
 
 2. Convert the exploded MOD to AT (after spot checking sprites, such as the different layers)
 
-```
+```shell
 java -jar ./stardrop.jar convert --to AT \
 "path/to/mod/root/[root name] exploded" --read-furniture-front
 ```
