@@ -75,11 +75,11 @@ jobs:
 
       - name: Make target directories
         if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
-        run: mkdir -p modules/alternative-textures/target modules/custom-furniture/target modules/converters/target modules/cli/target modules/core/target project/target
+        run: mkdir -p modules/content-patcher/target modules/alternative-textures/target modules/custom-furniture/target modules/converters/target modules/cli/target modules/core/target project/target
 
       - name: Compress target directories
         if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
-        run: tar cf targets.tar modules/alternative-textures/target modules/custom-furniture/target modules/converters/target modules/cli/target modules/core/target project/target
+        run: tar cf targets.tar modules/content-patcher/target modules/alternative-textures/target modules/custom-furniture/target modules/converters/target modules/cli/target modules/core/target project/target
 
       - name: Upload target directories
         if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
