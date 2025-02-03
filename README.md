@@ -44,7 +44,7 @@ This module contains the models and serialization tools for the Custom Furniture
 libraryDependencies += "com.quincyjo" %% "stardrop-custom-furniture" % version
 ```
 
-### Content Patcher Furniture
+### Content Patcher
 
 This module contains the models for Content Patcher modes. This module is still a work in progress.
 
