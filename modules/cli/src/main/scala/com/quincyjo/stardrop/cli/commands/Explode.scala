@@ -17,18 +17,17 @@
 package com.quincyjo.stardrop.cli.commands
 
 import cats.data.EitherT
-import cats.effect.IO
-import cats.effect.unsafe.IORuntime
+import cats.effect.{Async, ExitCode}
 import cats.implicits._
-import com.quincyjo.stardrop.cli.implicits._
 import com.monovore.decline._
+import com.quincyjo.stardrop.cli.implicits._
 import com.quincyjo.stardrop.converters.AlternativeTexturesSpriteConverter.AlternativeTexturesSpriteConverterOptions
+import com.quincyjo.stardrop.converters.CustomFurnitureSpriteExtractor.SpriteExtractorOptions
 import com.quincyjo.stardrop.converters.{
   AlternativeTexturesSpriteConverter,
   CustomFurnitureModExploder,
   CustomFurnitureSpriteExtractor
 }
-import com.quincyjo.stardrop.converters.CustomFurnitureSpriteExtractor.SpriteExtractorOptions
 import com.quincyjo.stardrop.customfurniture.{
   CustomFurnitureModReader,
   CustomFurnitureModWriter
@@ -43,11 +42,9 @@ final case class Explode(
     spriteConverterOptions: AlternativeTexturesSpriteConverterOptions
 ) {
 
-  def execute(): Unit = {
-    implicit val runtime: IORuntime = IORuntime.global
-
+  def execute[F[_]: Async]: F[ExitCode] = {
     (for {
-      mod <- EitherT(CustomFurnitureModReader.read[IO](target))
+      mod <- EitherT(CustomFurnitureModReader.read[F](target))
         .leftWiden[Throwable]
       converter = AlternativeTexturesSpriteConverter(spriteConverterOptions)
       exploder = CustomFurnitureModExploder(
@@ -55,10 +52,10 @@ final case class Explode(
         Some((cf, sprite) => converter.convert(cf, sprite))
       )
       explodedMod = exploder.explode(mod)
-      _ <- EitherT.liftF[IO, Throwable, Unit](
-        CustomFurnitureModWriter(explodedMod).writeTo[IO](outputTo)
+      _ <- EitherT.liftF[F, Throwable, Unit](
+        CustomFurnitureModWriter(explodedMod).writeTo[F](outputTo)
       )
-    } yield ()).value.unsafeRunSync().fold(throw _, identity)
+    } yield ExitCode.Success).value.map(_.getOrElse(ExitCode.Error))
   }
 }
 
@@ -95,9 +92,8 @@ object Explode {
         )
     }
 
-  final val command: Command[Unit] = Command(
-    name = "explode",
-    header =
-      "Rewrite an Alternative Textures mod with separate tilesheets for each sprite."
-  )(opts.map(_.execute()))
+  final val subcommand: Opts[Explode] = Opts.subcommand(
+    "explode",
+    "Rewrite an Alternative Textures mod with separate tilesheets for each sprite."
+  )(opts)
 }

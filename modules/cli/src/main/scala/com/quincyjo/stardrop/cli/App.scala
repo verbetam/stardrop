@@ -16,13 +16,24 @@
 
 package com.quincyjo.stardrop.cli
 
-import com.monovore.decline.*
+import cats.effect.{ExitCode, IO}
+import com.monovore.decline._
+import com.monovore.decline.effect.CommandIOApp
 import com.quincyjo.stardrop.cli.commands.{ConvertATMod, Explode}
 
 object App
-    extends CommandApp(
+    extends CommandIOApp(
       name = "stardrop",
-      header = "Utility tools for working with SMAPI mods.",
-      main = Opts.subcommand(ConvertATMod.command) orElse
-        Opts.subcommand(Explode.command)
-    )
+      header = "Utility tools for working with SMAPI mods."
+    ) {
+
+  override def main: Opts[IO[ExitCode]] =
+    (Explode.subcommand orElse ConvertATMod.subcommand).map {
+      case explode: Explode      => explode.execute[IO]
+      case convert: ConvertATMod => convert.execute[IO]
+      case _ =>
+        IO.println(
+          s"Unrecognized command, use --help to see available commands."
+        ) >> IO.pure(ExitCode.Error)
+    }
+}

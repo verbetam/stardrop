@@ -17,8 +17,7 @@
 package com.quincyjo.stardrop.cli.commands
 
 import cats.data.EitherT
-import cats.effect.IO
-import cats.effect.unsafe.IORuntime
+import cats.effect.{Async, ExitCode}
 import cats.implicits._
 import com.monovore.decline._
 import com.quincyjo.stardrop.alternativetextures.AlternativeTexturesModWriter
@@ -51,20 +50,18 @@ final case class ConvertATMod(
     analyzeOnly: Boolean
 ) {
 
-  def execute(): Unit = {
-    implicit val runtime: IORuntime = IORuntime.global
-
+  def execute[F[_]: Async]: F[ExitCode] = {
     (for {
       vanillaData <- EitherT(
-        JsonReader[IO](
+        JsonReader[F](
           unpackedContent.resolve("Data").resolve("Furniture.json").toFile
         ).decode[Seq[FurnitureData]]
       ).leftWiden[Throwable]
-      mod <- EitherT(CustomFurnitureModReader.read[IO](target))
+      mod <- EitherT(CustomFurnitureModReader.read[F](target))
         .leftWiden[Throwable]
-      result <- EitherT.liftF[IO, Throwable, Unit](
+      _ <- EitherT.liftF[F, Throwable, Unit](
         if (analyzeOnly) {
-          IO.pure(analyze(vanillaData, mod))
+          Async[F].pure(analyze(vanillaData, mod))
         } else {
           val converter =
             AlternativeTexturesConverter(
@@ -73,10 +70,10 @@ final case class ConvertATMod(
             )
           val convertedMod =
             converter.createAlternateTexturesMod(mod, vanillaData)
-          AlternativeTexturesModWriter(convertedMod).writeTo[IO](outputTo)
+          AlternativeTexturesModWriter(convertedMod).writeTo[F](outputTo)
         }
       )
-    } yield result).value.unsafeRunSync().fold(throw _, identity)
+    } yield ExitCode.Success).value.map(_.getOrElse(ExitCode.Error))
   }
 
   def analyze(
@@ -206,8 +203,8 @@ object ConvertATMod {
         )
     }
 
-  final val command: Command[Unit] = Command(
-    name = "convert",
-    header = "Convert a Custom Furniture mod to an Alternative Textures mod."
-  )(opts.map(_.execute()))
+  final val subcommand: Opts[ConvertATMod] = Opts.subcommand(
+    "convert",
+    "Convert a Custom Furniture mod to an Alternative Textures mod."
+  )(opts)
 }

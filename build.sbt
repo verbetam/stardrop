@@ -50,6 +50,7 @@ lazy val jackson =
 // lazy val slf4jSimple = "org.slf4j" % "slf4j-simple" % slf4jVersion
 lazy val logback = "ch.qos.logback" % "logback-classic" % logbackVersion
 lazy val decline = "com.monovore" %% "decline" % declineVersion
+lazy val declineEffect = "com.monovore" %% "decline-effect" % declineVersion
 lazy val scalatest = "org.scalatest" %% "scalatest" % scalaTestVersion % Test
 lazy val scalamock = "org.scalamock" %% "scalamock" % scalamockVersion % Test
 
@@ -107,7 +108,6 @@ lazy val alternativeTextures = project
   .in(file("modules/alternative-textures"))
   .dependsOn(core)
   .settings(
-    libraryDependencies += decline,
     name := "Stardrop Alternative Textures",
     moduleName := "stardrop-alternative-textures",
     commonSettings
@@ -118,7 +118,6 @@ lazy val customFurniture = project
   .in(file("modules/custom-furniture"))
   .dependsOn(core)
   .settings(
-    libraryDependencies += decline,
     name := "Stardrop Custom Furniture",
     moduleName := "stardrop-custom-furniture",
     commonSettings
@@ -129,7 +128,6 @@ lazy val contentPatcher = project
   .in(file("modules/content-patcher"))
   .dependsOn(core)
   .settings(
-    libraryDependencies += decline,
     name := "Stardrop Content Patcher",
     moduleName := "stardrop-content-patcher",
     commonSettings
@@ -140,7 +138,6 @@ lazy val converters = project
   .in(file("modules/converters"))
   .dependsOn(core, alternativeTextures, customFurniture)
   .settings(
-    libraryDependencies += decline,
     name := "Stardrop Converters",
     moduleName := "stardrop-converters",
     commonSettings
@@ -151,7 +148,7 @@ lazy val cli = project
   .dependsOn(core, converters)
   .settings(
     publish / skip := true,
-    libraryDependencies += decline,
+    libraryDependencies ++= Seq(decline, declineEffect),
     name := "Stardrop Cli",
     moduleName := "stardrop-cli",
     commonSettings,
