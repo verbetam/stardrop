@@ -21,10 +21,12 @@ import io.circe.generic.extras.Configuration
 /** Contains default JSON formatting options used by SMAPI mods. Specifically,
   * this includes a configuration which capitalizes all JSON keys.
   */
-object JsonFormat {
+trait JsonFormat extends LocaleFormat {
 
   /** The default configuration to be used by SMAPI mods.
     */
   final val DefaultConfig: Configuration =
     Configuration.default.copy(transformMemberNames = _.capitalize)
 }
+
+object JsonFormat extends JsonFormat

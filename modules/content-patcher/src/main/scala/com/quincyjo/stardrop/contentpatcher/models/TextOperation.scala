@@ -17,7 +17,6 @@
 package com.quincyjo.stardrop.contentpatcher.models
 
 import com.quincyjo.stardrop.encoding.JsonFormat.DefaultConfig
-
 import io.circe.Codec
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.{

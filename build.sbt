@@ -84,7 +84,14 @@ val assemblySettings = Seq(
 )
 
 lazy val root = tlCrossRootProject
-  .aggregate(core, alternativeTextures, customFurniture, converters, cli)
+  .aggregate(
+    core,
+    alternativeTextures,
+    customFurniture,
+    contentPatcher,
+    converters,
+    cli
+  )
 
 lazy val core = project
   .disablePlugins(sbtassembly.AssemblyPlugin)

@@ -16,26 +16,36 @@
 
 package com.quincyjo.stardrop.contentpatcher.models
 
-import com.quincyjo.stardrop.encoding.JsonFormat.DefaultConfig
-
+import com.quincyjo.stardrop.encoding.JsonFormat
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 import io.circe.{Codec, Json}
 
+import java.util.Locale
+
 sealed trait Action
 
-object Action {
+object Action extends JsonFormat {
 
   implicit val configuration: Configuration =
     DefaultConfig.withDiscriminator("Action")
+
   implicit val codec: Codec[Action] = deriveConfiguredCodec
 
   type AssetName = String
   type RelativePath = String
   type Conditions = Map[String, Json]
 
-  final case class Load(target: AssetName, fromFile: RelativePath)
-      extends Action
+  final case class Load(
+      target: AssetName,
+      fromFile: RelativePath,
+      when: Option[Conditions] = None,
+      logName: Option[String] = None,
+      update: Option[UpdateRate] = None,
+      localTokens: Option[Map[String, Json]] = None,
+      priority: Option[Priority] = None,
+      targetLocale: Option[Locale] = None
+  ) extends Action
 
   object Load {
 
@@ -53,7 +63,10 @@ object Action {
       targetField: Option[String] = None,
       when: Option[Conditions] = None,
       logName: Option[String] = None,
-      updateRate: Option[UpdateRate] = None
+      update: Option[UpdateRate] = None,
+      localTokens: Option[Map[String, Json]] = None,
+      priority: Option[Priority] = None,
+      targetLocale: Option[Locale] = None
   ) extends Action
 
   object EditData {
@@ -71,7 +84,10 @@ object Action {
       patchMode: Option[PatchMode],
       when: Option[Conditions] = None,
       logName: Option[String] = None,
-      update: Option[UpdateRate] = None
+      update: Option[UpdateRate] = None,
+      localTokens: Option[Map[String, Json]] = None,
+      priority: Option[Priority] = None,
+      targetLocale: Option[Locale] = None
   ) extends Action
 
   object EditImage {
@@ -83,16 +99,53 @@ object Action {
 
   final case class EditMap(
       target: AssetName,
-      fromFile: RelativePath,
+      when: Option[Conditions] = None,
+      logName: Option[String] = None,
+      update: Option[UpdateRate] = None,
+      localTokens: Option[Map[String, Json]] = None,
+      // Advanced Fields
+      priority: Option[Priority] = None,
+      targetLocale: Option[Locale] = None,
+      // MapOverlay Fields, fromFile required.
+      fromFile: Option[RelativePath] = None,
       fromArea: Option[Area] = None,
       toArea: Option[Area] = None,
       patchMode: Option[PatchMode],
-      when: Option[Conditions] = None,
-      logName: Option[String] = None,
-      update: Option[UpdateRate] = None
-  ) extends Action
+      // EditMap Fields, any one required.
+      mapProperties: Option[Map[String, Json]] = None,
+      addWarps: Option[Vector[String]] = None, // TODO: Type warps
+      textOperations: Option[Vector[TextOperation]] = None,
+      // MapTiles Fields
+      mapTiles: Option[Vector[EditMap.MapTiles]] = None
+  ) extends Action {
+
+    def hasMapOverlay: Boolean =
+      fromFile.nonEmpty
+
+    def hasEditMap: Boolean =
+      mapProperties.nonEmpty || addWarps.nonEmpty || textOperations.nonEmpty
+
+    def hasMapTiles: Boolean =
+      mapTiles.nonEmpty
+  }
 
   object EditMap {
+
+    final case class MapTiles(
+        layer: String, // TODO: Type layers,
+        position: String, // TODO: Type position
+        setTilesheet: Option[Json] = None, // required when adding a tile,
+        setIndex: Option[Json] = None, // required when adding a tile,
+        setProperties: Option[Map[String, Json]] = None,
+        remove: Option[Boolean] = None
+    )
+
+    object MapTiles {
+
+      implicit val config: Configuration = DefaultConfig
+
+      implicit val codec: Codec[MapTiles] = deriveConfiguredCodec
+    }
 
     implicit val config: Configuration = DefaultConfig
 
@@ -103,7 +156,8 @@ object Action {
       fromFile: RelativePath,
       when: Option[Conditions] = None,
       logName: Option[String] = None,
-      update: Option[UpdateRate] = None
+      update: Option[UpdateRate] = None,
+      localTokens: Option[Map[String, Json]] = None
   ) extends Action
 
   object Include {
