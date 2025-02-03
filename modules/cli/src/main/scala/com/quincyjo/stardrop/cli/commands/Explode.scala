@@ -16,9 +16,12 @@
 
 package com.quincyjo.stardrop.cli.commands
 
-import cats.implicits.*
+import cats.data.EitherT
+import cats.effect.IO
+import cats.effect.unsafe.IORuntime
+import cats.implicits._
 import com.quincyjo.stardrop.cli.implicits._
-import com.monovore.decline.*
+import com.monovore.decline._
 import com.quincyjo.stardrop.converters.AlternativeTexturesSpriteConverter.AlternativeTexturesSpriteConverterOptions
 import com.quincyjo.stardrop.converters.{
   AlternativeTexturesSpriteConverter,
@@ -41,14 +44,21 @@ final case class Explode(
 ) {
 
   def execute(): Unit = {
-    val mod = CustomFurnitureModReader.read(target).toTry.get
-    val converter = AlternativeTexturesSpriteConverter(spriteConverterOptions)
-    val exploder = CustomFurnitureModExploder(
-      CustomFurnitureSpriteExtractor(spriteExtractionOptions),
-      Some((cf, sprite) => converter.convert(cf, sprite))
-    )
-    val explodedMod = exploder.explode(mod)
-    CustomFurnitureModWriter(explodedMod).writeTo(outputTo)
+    implicit val runtime: IORuntime = IORuntime.global
+
+    (for {
+      mod <- EitherT(CustomFurnitureModReader.read[IO](target))
+        .leftWiden[Throwable]
+      converter = AlternativeTexturesSpriteConverter(spriteConverterOptions)
+      exploder = CustomFurnitureModExploder(
+        CustomFurnitureSpriteExtractor(spriteExtractionOptions),
+        Some((cf, sprite) => converter.convert(cf, sprite))
+      )
+      explodedMod = exploder.explode(mod)
+      _ <- EitherT.liftF[IO, Throwable, Unit](
+        CustomFurnitureModWriter(explodedMod).writeTo[IO](outputTo)
+      )
+    } yield ()).value.unsafeRunSync().fold(throw _, identity)
   }
 }
 

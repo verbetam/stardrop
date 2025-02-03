@@ -16,6 +16,8 @@
 
 package com.quincyjo.stardrop.alternativetextures
 
+import cats.effect.Async
+import cats.implicits._
 import com.quincyjo.stardrop.alternativetextures.models.{
   AlternativeTexturesMod,
   Texture
@@ -32,32 +34,42 @@ class AlternativeTexturesModWriter(mod: AlternativeTexturesMod)
   override protected val logger: Logger =
     LoggerFactory.getLogger("AlternativeTexturesModWriter")
 
-  def writeTo(root: Directory): Unit = {
-    writeManifest(root, mod.manifest)
-    val texturesDir = root.resolve("Textures").createDirectory()
-    mod.textures.foreach { case (texture, sprites) =>
-      writeTexture(texturesDir, texture, sprites)
-    }
-  }
+  def writeTo[F[_]: Async](root: Directory): F[Unit] =
+    writeManifest[F](root, mod.manifest) >>
+      createTexturesDirectory[F](root) >>=
+      writeTextures[F]
 
-  def writeTexture(
+  private def createTexturesDirectory[F[_]: Async](
+      root: Directory
+  ): F[Directory] =
+    createDirectory[F](root.resolve("Textures"))
+
+  private def writeTextures[F[_]: Async](directory: Directory): F[Unit] =
+    mod.textures.toSeq.traverse { case (texture, sprites) =>
+      writeTexture(directory, texture, sprites)
+    }.void
+
+  private def writeTexture[F[_]: Async](
       textures: Directory,
       texture: Texture,
       sprites: Iterable[Sprite]
-  ): Unit = {
-    val thisTextureDir =
-      (textures /
-        texture.textureType.toString /
-        textureDirectoryName(texture))
-        .createDirectory()
-    logger.info(s"Writing texture ${textures.relativize(thisTextureDir.path)}")
-    writeAsJson(thisTextureDir, "texture", texture)
-    sprites.zipWithIndex.foreach { case (sprite, i) =>
-      writeImage(thisTextureDir, s"texture_$i", sprite.image)
-    }
-  }
+  ): F[Unit] =
+    for {
+      directory <- createDirectory(
+        textures /
+          texture.textureType.toString /
+          textureDirectoryName(texture)
+      )
+      _ = logger.info(
+        s"Writing texture ${textures.relativize(directory.path)}"
+      )
+      result <- writeAsJson[Texture, F](directory, "texture", texture) >>
+        sprites.zipWithIndex.toSeq.traverse { case (sprite, i) =>
+          writeImage[F](directory, s"texture_$i", sprite.image)
+        }.void
+    } yield result
 
-  def textureDirectoryName(texture: Texture): String =
+  private def textureDirectoryName(texture: Texture): String =
     texture.itemName
       .replaceAll(" ", "_")
       .appendedAll {

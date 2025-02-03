@@ -16,6 +16,8 @@
 
 package com.quincyjo.stardrop.customfurniture
 
+import cats.effect.Async
+import cats.implicits._
 import com.quincyjo.stardrop.encoding.ModWriter
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -27,30 +29,24 @@ class CustomFurnitureModWriter(mod: CustomFurnitureMod)
   override protected val logger: Logger =
     LoggerFactory.getLogger("CustomFurnitureModWriter")
 
-  def writeManifest(in: Directory): Int =
-    writeAsJson(in, "manifest", mod.manifest)
-
-  override def writeTo(root: Directory): Unit = {
-    if (!root.exists) {
-      logger.info(
-        s"Target directory does not exist. Creating directory ${root.name}"
-      )
-      root.createDirectory()
-    }
+  override def writeTo[F[_]: Async](root: Directory): F[Unit] = {
     logger.info(s"Writing mod ${mod.manifest.name} to ${root.name}")
-    writeManifest(root)
-    writeAsJson(
-      root,
-      "content",
-      mod.sortPack
-    )
-    mod.tileSheets.foreach { tilesheet =>
-      writeImage(root, tilesheet.name, tilesheet.image)
-    }
+    writeManifest(root, mod.manifest) >>
+      writeContent(root) >>
+      writeTileSheets(root)
   }
+
+  private def writeContent[F[_]: Async](root: Directory): F[Int] =
+    writeAsJson(root, "content", mod.sortPack)
+
+  private def writeTileSheets[F[_]: Async](root: Directory): F[Unit] =
+    mod.tileSheets.traverse { tilesheet =>
+      writeImage(root, tilesheet.name, tilesheet.image)
+    }.void
 }
 
 object CustomFurnitureModWriter {
+
   def apply(mod: CustomFurnitureMod): CustomFurnitureModWriter =
     new CustomFurnitureModWriter(mod)
 }

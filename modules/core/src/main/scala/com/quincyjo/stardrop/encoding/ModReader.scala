@@ -16,7 +16,10 @@
 
 package com.quincyjo.stardrop.encoding
 
-import ModReader._
+import cats.data.EitherT
+import cats.effect.Async
+import cats.implicits._
+import com.quincyjo.stardrop.encoding.ModReader._
 import com.quincyjo.stardrop.smapi.models.SmapiManifest
 import org.slf4j.Logger
 
@@ -41,10 +44,12 @@ trait ModReader[ModType] {
     *   Either a [[com.quincyjo.stardrop.smapi.models.SmapiManifest]] or a
     *   [[com.quincyjo.stardrop.encoding.ModReader.ModReaderException]].
     */
-  protected def readManifestFrom(
+  protected def readManifestFrom[F[_]: Async](
       path: Directory
-  ): ModReaderResult[SmapiManifest] =
-    findManifest(path).flatMap(readManifest)
+  ): F[ModReaderResult[SmapiManifest]] = (for {
+    path <- EitherT(findManifest(path))
+    manifest <- EitherT(readManifest(path))
+  } yield manifest).value
 
   /** Reads the mod from the provided directory. This is left to be implemented
     * by the specific mod reader.
@@ -54,7 +59,9 @@ trait ModReader[ModType] {
     *   Either a <pre>ModType</pre> or a
     *   [[com.quincyjo.stardrop.encoding.ModReader.ModReaderException]].
     */
-  protected def readMod(from: Directory): ModReaderResult[ModType]
+  protected def readMod[F[_]: Async](
+      from: Directory
+  ): F[ModReaderResult[ModType]]
 
   /** Reads the mod from the provided path.
     * @param from
@@ -63,7 +70,7 @@ trait ModReader[ModType] {
     *   Either a <pre>ModType</pre> or a
     *   [[com.quincyjo.stardrop.encoding.ModReader.ModReaderException]].
     */
-  def read(from: Path): ModReaderResult[ModType] = {
+  def read[F[_]: Async](from: Path): F[ModReaderResult[ModType]] = {
     logger.info(s"Reading mod from $from")
     readMod(from.toDirectory)
   }
@@ -75,7 +82,9 @@ trait ModReader[ModType] {
     *   Either a <pre>ModType</pre> or a
     *   [[com.quincyjo.stardrop.encoding.ModReader.ModReaderException]].
     */
-  def read(jPath: java.nio.file.Path): ModReaderResult[ModType] =
+  def read[F[_]: Async](
+      jPath: java.nio.file.Path
+  ): F[ModReaderResult[ModType]] =
     read(Path(jPath.toFile))
 
   /** Attempts to find a file candidate for a SMAPI manifest in the given
@@ -86,16 +95,20 @@ trait ModReader[ModType] {
     *   Either a [[File]] or a
     *   [[com.quincyjo.stardrop.encoding.ModReader.ModReaderException]].
     */
-  private def findManifest(in: Directory): ModReaderResult[File] = {
+  private def findManifest[F[_]: Async](
+      in: Directory
+  ): F[ModReaderResult[File]] = {
     logger.debug(s"Looking for manifest in ${in.name}")
-    in.files
-      .filter(ManifestFilter)
-      .nextOption()
-      .toRight(
-        FileNotFoundException(
-          s"Could not find a manifest.json file in ${in.name}"
+    Async[F].blocking {
+      in.files
+        .filter(ManifestFilter)
+        .nextOption()
+        .toRight(
+          FileNotFoundException(
+            s"Could not find a manifest.json file in ${in.name}"
+          )
         )
-      )
+    }
   }
 
   /** Attempt to read the given file as a SMAPI manifest.
@@ -105,11 +118,18 @@ trait ModReader[ModType] {
     *   Either a [[SmapiManifest]] or a
     *   [[com.quincyjo.stardrop.encoding.ModReader.ModReaderException]].
     */
-  private def readManifest(file: File): ModReaderResult[SmapiManifest] = {
+  private def readManifest[F[_]: Async](
+      file: File
+  ): F[ModReaderResult[SmapiManifest]] = {
     logger.info(s"Reading manifest from ${file.name}")
-    JsonReader(file).decode[SmapiManifest].left.map { ex =>
-      FailureToReadFile(s"Failed to read manifest file ${file.name}", Some(ex))
-    }
+    JsonReader[F](file)
+      .decode[SmapiManifest]
+      .map(_.left.map { ex =>
+        FailureToReadFile(
+          s"Failed to read manifest file ${file.name}",
+          Some(ex)
+        )
+      })
   }
 }
 

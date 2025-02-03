@@ -16,11 +16,13 @@
 
 package com.quincyjo.stardrop.shared.models
 
+import cats.implicits._
 import TileSheet.{TILE_HEIGHT, TILE_WIDTH}
-
+import cats.effect.Async
 import org.slf4j.{Logger, LoggerFactory}
 
 import java.awt.image.BufferedImage
+import java.io.IOException
 import javax.imageio.ImageIO
 import scala.reflect.io.File
 
@@ -105,11 +107,18 @@ object TileSheet {
     */
   final val TILE_WIDTH = 16
 
-  def fromFile(file: File): Either[String, TileSheet] =
-    fromImage(file.name, ImageIO.read(file.jfile))
+  def fromFile[F[_]: Async](
+      file: java.io.File
+  ): F[TileSheet] =
+    Async[F].blocking(ImageIO.read(file)).flatMap { image =>
+      fromImage(file.getName, image).fold(
+        error => Async[F].raiseError(new IOException(error)),
+        Async[F].pure(_)
+      )
+    }
 
-  def fromFile(file: java.io.File): Either[String, TileSheet] =
-    fromImage(file.getName, ImageIO.read(file))
+  def fromFile[F[_]: Async](file: File): F[TileSheet] =
+    fromFile[F](file.jfile)
 
   /** Creates a tile sheet from an image. If the image is not divisible into
     * tiles, then an error string is returned in the left instead.

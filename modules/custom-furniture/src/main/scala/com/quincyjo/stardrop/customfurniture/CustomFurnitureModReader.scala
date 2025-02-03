@@ -16,14 +16,16 @@
 
 package com.quincyjo.stardrop.customfurniture
 
-import com.quincyjo.stardrop.encoding.ModReader.*
-import cats.syntax.traverse.*
+import cats.data.EitherT
+import cats.effect.Async
+import cats.implicits._
 import com.quincyjo.stardrop.customfurniture.models.CustomFurniturePack
+import com.quincyjo.stardrop.encoding.ModReader._
 import com.quincyjo.stardrop.encoding.{JsonReader, ModReader}
 import com.quincyjo.stardrop.shared.models.TileSheet
 import org.slf4j.{Logger, LoggerFactory}
 
-import scala.reflect.io.*
+import scala.reflect.io._
 import scala.util.chaining.scalaUtilChainingOps
 
 object CustomFurnitureModReader extends ModReader[CustomFurnitureMod] {
@@ -31,72 +33,92 @@ object CustomFurnitureModReader extends ModReader[CustomFurnitureMod] {
   override final val logger: Logger =
     LoggerFactory.getLogger("CustomFurnitureModReader")
 
-  def readMod(from: Directory): ModReaderResult[CustomFurnitureMod] =
-    for {
-      manifest <- readManifestFrom(from)
-      pack <- readPack(from)
-      tilesheets <- readTilesheets(from)
-    } yield CustomFurnitureMod(manifest, pack, tilesheets.toVector)
+  override protected def readMod[F[_]: Async](
+      from: Directory
+  ): F[ModReaderResult[CustomFurnitureMod]] =
+    (for {
+      manifest <- EitherT(readManifestFrom(from))
+      pack <- EitherT(readPack(from))
+      tilesheets <- EitherT(readTilesheets(from))
+    } yield CustomFurnitureMod(manifest, pack, tilesheets.toVector)).value
 
-  def readTilesheets(from: Directory): ModReaderResult[Iterable[TileSheet]] = {
+  def readTilesheets[F[_]: Async](
+      from: Directory
+  ): F[ModReaderResult[Seq[TileSheet]]] = {
     logger.debug(s"Looking for tilesheets in ${from.name}")
-    from.files
-      .filter(PngFilter)
-      .toSeq
-      .tap { files =>
-        logger.debug(
-          s"Found the following tile sheets: ${files.map(file => from.relativize(file)).mkString(", ")}"
-        )
-      }
-      .traverse { file =>
-        logger.info(s"Reading tilesheet from ${from.relativize(file.path)}")
-        TileSheet
-          .fromFile(file)
-          .left
-          .map { message =>
-            FailureToReadFile(
-              s"Failed to read tilesheet from ${file.path}: $message"
+    Async[F]
+      .blocking {
+        from.files
+          .filter(PngFilter)
+          .toSeq
+          .tap { files =>
+            logger.debug(
+              s"Found the following tile sheets: ${files.map(file => from.relativize(file)).mkString(", ")}"
             )
           }
       }
-  }
-
-  def findPacks(in: Directory): Seq[File] = {
-    logger.debug(s"Looking for custom furniture pack candidates in ${in.name}")
-    in.files
-      .filter(JsonFilter & !ManifestFilter)
-      .toSeq
-      .tap { files =>
-        logger.debug(
-          s"Found the following JSONs as candidates for custom furniture packs: ${files
-            .map(file => in.relativize(file))
-            .mkString(", ")}"
-        )
-      }
-  }
-
-  def readPack(from: Directory): ModReaderResult[CustomFurniturePack] = {
-    val candidateFiles = findPacks(from)
-    candidateFiles.headOption
-      .toRight(FileNotFoundException(s"No pack file could be found"))
-      .filterOrElse(
-        _ => candidateFiles.size < 2,
-        FileNotFoundException(
-          s"Found ${candidateFiles.size} JSONs, but expecting exactly one other than the manifest in ${from}"
-        )
-      )
-      .flatMap { file =>
-        logger.info(
-          s"Reading custom furniture pack from ${from.relativize(file.path)}",
-          ")}"
-        )
-        JsonReader(file).decode[CustomFurniturePack].left.map { ex =>
-          FailureToReadFile(
-            s"Failed to read the custom furniture pack from ${file.path}",
-            Some(ex)
+      .flatMap { files =>
+        files.traverse { file =>
+          logger.info(s"Reading tilesheet from ${from.relativize(file.path)}")
+          EitherT(
+            TileSheet
+              .fromFile[F](file)
+              .map[ModReaderResult[TileSheet]](Right.apply)
+              .recover { ex =>
+                Left(
+                  FailureToReadFile(
+                    s"Failed to read tilesheet from ${file.path}",
+                    Some(ex)
+                  )
+                )
+              }
           )
-        }
+        }.value
       }
   }
+
+  def findPacks[F[_]: Async](in: Directory): F[ModReaderResult[Seq[File]]] =
+    Async[F].blocking {
+      logger.debug(
+        s"Looking for custom furniture pack candidates in ${in.name}"
+      )
+      Right(
+        in.files
+          .filter(JsonFilter & !ManifestFilter)
+          .toSeq
+          .tap { files =>
+            logger.debug(
+              s"Found the following JSONs as candidates for custom furniture packs: ${files
+                .map(file => in.relativize(file))
+                .mkString(", ")}"
+            )
+          }
+      )
+    }
+
+  def readPack[F[_]: Async](
+      from: Directory
+  ): F[ModReaderResult[CustomFurniturePack]] = (for {
+    candidates <- EitherT(findPacks[F](from))
+    file <- EitherT.fromEither[F](
+      candidates.headOption
+        .toRight[ModReaderException](
+          FileNotFoundException(s"No pack file could be found")
+        )
+        .filterOrElse(
+          _ => candidates.size < 2,
+          FileNotFoundException(
+            s"Found ${candidates.size} JSONs, but expecting exactly one other than the manifest in ${from}"
+          )
+        )
+    )
+    pack <- EitherT(JsonReader[F](file).decode[CustomFurniturePack])
+      .leftMap[ModReaderException] { ex =>
+        FailureToReadFile(
+          s"Failed to read the custom furniture pack from ${file.path}",
+          Some(ex)
+        )
+      }
+  } yield pack).value
 
 }

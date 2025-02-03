@@ -23,7 +23,7 @@ import io.circe.{Codec, Decoder, Encoder}
 sealed trait UpdateRate
 
 object UpdateRate {
- 
+
   sealed trait SingleRate extends UpdateRate {
 
     def +(that: SingleRate): Multiple = Multiple(this, that)

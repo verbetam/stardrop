@@ -142,8 +142,6 @@ object Action extends JsonFormat {
 
     object MapTiles {
 
-      implicit val config: Configuration = DefaultConfig
-
       implicit val codec: Codec[MapTiles] = deriveConfiguredCodec
     }
 

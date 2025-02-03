@@ -16,6 +16,7 @@
 
 package com.quincyjo.stardrop.encoding
 
+import cats.effect.{Async, Resource}
 import com.quincyjo.stardrop.smapi.models.SmapiManifest
 import io.circe.syntax.EncoderOps
 import io.circe.{Encoder, Json, Printer}
@@ -35,6 +36,27 @@ trait ModWriter[ModType] {
 
   protected def logger: Logger
 
+  /** Writes the mod to the provided directory.
+    * @param root
+    *   The directory to write the mod to.
+    */
+  def writeTo[F[_]: Async](root: Directory): F[Unit]
+
+  /** Writes the mod to the provided path, creating a directory if necessary.
+    * @param path
+    *   The path to write the mod to.
+    */
+  def writeTo[F[_]: Async](path: Path): F[Unit] =
+    writeTo[F](path.createDirectory())
+
+  /** Writes the mod to the provided java.nio.file.Path, creating a directory if
+    * necessary.
+    * @param jpath
+    *   The [[java.nio.file.Path]] to write the mod to.
+    */
+  def writeTo[F[_]: Async](jpath: java.nio.file.Path): F[Unit] =
+    writeTo[F](Path(jpath.toFile))
+
   /** A writer configured to drop null values from JSON.
     */
   private final val jsonPrinter: Printer =
@@ -48,7 +70,10 @@ trait ModWriter[ModType] {
     * @return
     *   The number of bytes written, possibly zero.
     */
-  def writeManifest(in: Directory, manifest: SmapiManifest): Int =
+  protected def writeManifest[F[_]: Async](
+      in: Directory,
+      manifest: SmapiManifest
+  ): F[Int] =
     writeAsJson(in, "manifest", manifest)
 
   /** Writes the given JSON to the given file.
@@ -59,12 +84,22 @@ trait ModWriter[ModType] {
     * @return
     *   The number of bytes written, possibly zero.
     */
-  def writeJson(file: File, json: Json): Int = {
+  protected def writeJson[F[_]: Async](file: File, json: Json): F[Int] = {
     logger.debug(s"Writing ${file.name}")
-    new FileOutputStream(file.jfile).getChannel
-      .write(jsonPrinter.printToByteBuffer(json.deepDropNullValues))
-      .tap { bytesWritten =>
-        logger.debug(s"Successfully Wrote $bytesWritten bytes to ${file.name}")
+    Resource
+      .make[F, FileOutputStream](
+        Async[F].blocking(new FileOutputStream(file.jfile))
+      )(x => Async[F].blocking(x.close()))
+      .use { outputStream =>
+        Async[F].blocking {
+          outputStream.getChannel
+            .write(jsonPrinter.printToByteBuffer(json.deepDropNullValues))
+            .tap { bytesWritten =>
+              logger.debug(
+                s"Successfully Wrote $bytesWritten bytes to ${file.name}"
+              )
+            }
+        }
       }
   }
 
@@ -76,8 +111,8 @@ trait ModWriter[ModType] {
     * @return
     *   The number of bytes written, possibly zero.
     */
-  def writeJson(path: Path, json: Json): Int =
-    writeJson(ensureExtension(path, "json").createFile(), json)
+  protected def writeJson[F[_]: Async](path: Path, json: Json): F[Int] =
+    writeJson[F](ensureExtension(path, "json").createFile(), json)
 
   /** Writes the given JSON to the given director with the provided filename.
     * @param in
@@ -89,8 +124,12 @@ trait ModWriter[ModType] {
     * @return
     *   The number of bytes written, possibly zero.
     */
-  def writeJson(in: Directory, name: String, json: Json): Int =
-    writeJson(in / name, json)
+  protected def writeJson[F[_]: Async](
+      in: Directory,
+      name: String,
+      json: Json
+  ): F[Int] =
+    writeJson[F](in / name, json)
 
   /** Writes the given value to the given directory with the provided filename
     * as a JSON using the provided encoder.
@@ -103,8 +142,12 @@ trait ModWriter[ModType] {
     * @return
     *   The number of bytes written, possibly zero.
     */
-  def writeAsJson[T: Encoder](path: Directory, name: String, t: T): Int =
-    writeJson(path, name, t.asJson)
+  protected def writeAsJson[T: Encoder, F[_]: Async](
+      path: Directory,
+      name: String,
+      t: T
+  ): F[Int] =
+    writeJson[F](path, name, t.asJson)
 
   /** Writes the given image to the given path.
     * @param path
@@ -116,7 +159,11 @@ trait ModWriter[ModType] {
     * @return
     *   True if the image was written, false otherwise.
     */
-  def writeImage(path: Path, image: BufferedImage, format: String): Boolean = {
+  protected def writeImage[F[_]: Async](
+      path: Path,
+      image: BufferedImage,
+      format: String
+  ): F[Boolean] = Async[F].blocking {
     logger.debug(s"Writing ${path.name}")
     ImageIO.write(image, format, sanitizePath(path).createFile().jfile)
   }
@@ -133,13 +180,13 @@ trait ModWriter[ModType] {
     * @return
     *   True if the image was written, false otherwise.
     */
-  def writeImage(
+  protected def writeImage[F[_]: Async](
       in: Directory,
       name: String,
       image: BufferedImage,
       format: String = "png"
-  ): Boolean =
-    writeImage(ensureExtension(in / name, format), image, format)
+  ): F[Boolean] =
+    writeImage[F](ensureExtension(in / name, format), image, format)
 
   /** Sanitizes the path by removing invalid characters.
     * @param path
@@ -160,24 +207,10 @@ trait ModWriter[ModType] {
           .mkString(path.separatorStr)
     })
 
-  /** Writes the mod to the provided directory.
-    * @param root
-    *   The directory to write the mod to.
-    */
-  def writeTo(root: Directory): Unit
-
-  /** Writes the mod to the provided path, creating a directory if necessary.
-    * @param path
-    *   The path to write the mod to.
-    */
-  def writeTo(path: Path): Unit = writeTo(path.createDirectory())
-
-  /** Writes the mod to the provided java.nio.file.Path, creating a directory if
-    * necessary.
-    * @param jpath
-    *   The [[java.nio.file.Path]] to write the mod to.
-    */
-  def writeTo(jpath: java.nio.file.Path): Unit = writeTo(Path(jpath.toFile))
+  protected def createDirectory[F[_]: Async](path: Path): F[Directory] =
+    Async[F].blocking {
+      path.createDirectory()
+    }
 
   /** Ensures that the path has the given extension.
     * @param path

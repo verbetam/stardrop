@@ -16,10 +16,13 @@
 
 package com.quincyjo.stardrop.cli.commands
 
-import cats.implicits.*
-import com.monovore.decline.*
+import cats.data.EitherT
+import cats.effect.IO
+import cats.effect.unsafe.IORuntime
+import cats.implicits._
+import com.monovore.decline._
 import com.quincyjo.stardrop.alternativetextures.AlternativeTexturesModWriter
-import com.quincyjo.stardrop.cli.implicits.*
+import com.quincyjo.stardrop.cli.implicits._
 import com.quincyjo.stardrop.cli.models.ModType
 import com.quincyjo.stardrop.content.models.FurnitureData
 import com.quincyjo.stardrop.converters.AlternativeTexturesSpriteConverter.AlternativeTexturesSpriteConverterOptions
@@ -30,7 +33,10 @@ import com.quincyjo.stardrop.converters.{
   CustomFurnitureMatcher,
   CustomFurnitureSpriteExtractor
 }
-import com.quincyjo.stardrop.customfurniture.CustomFurnitureModReader
+import com.quincyjo.stardrop.customfurniture.{
+  CustomFurnitureMod,
+  CustomFurnitureModReader
+}
 import com.quincyjo.stardrop.encoding.JsonReader
 
 import scala.reflect.io.{Directory, Path}
@@ -46,78 +52,84 @@ final case class ConvertATMod(
 ) {
 
   def execute(): Unit = {
+    implicit val runtime: IORuntime = IORuntime.global
 
-    val vanillaData = JsonReader(
-      unpackedContent.resolve("Data").resolve("Furniture.json").toFile
-    ).decode[Seq[FurnitureData]].toTry.get
-
-    val mod =
-      CustomFurnitureModReader.read(target).toTry.get
-
-    if (analyzeOnly) {
-      val alternates = vanillaData
-        .filterNot(data => data.name.contains(':') || data.name.startsWith("'"))
-
-      //.distinctBy(fd => (fd.furnitureType, fd.tilesheetSize, fd.boundingBoxSize))
-      def ofInterest(matches: Seq[FurnitureData]): String = {
-        matches
-          .distinctBy(fd =>
-            (fd.furnitureType, fd.tilesheetSize, fd.boundingBoxSize)
-          )
-          .take(3)
-          .map(_.name)
-          .mkString(", ")
-      }
-
-      mod.pack.furniture.map { cf =>
-        println(s"Looking for matches for ${cf.id}: ${cf.name}")
-        val spriteMatches = CustomFurnitureMatcher
-          .findMatchingAlternatesBySprite(cf, alternates)
-          .tap {
-            _.fold(println(s"No sprite matches found")) { spriteMatches =>
-              println(
-                s"Found the following sprite matches: ${ofInterest(spriteMatches.toSeq)}"
-              )
-            }
-          }
-          .map(_.toSeq)
-          .getOrElse(Seq.empty)
-        val boxMatches = CustomFurnitureMatcher
-          .findMatchingAlternatesByBox(cf, alternates)
-          .tap {
-            _.fold(println(s"No sprite matches found")) { boxMatches =>
-              println(
-                s"Found the following box matches: ${ofInterest(boxMatches.toSeq)}"
-              )
-            }
-          }
-          .map(_.toSeq)
-          .getOrElse(Seq.empty)
-        val lost = spriteMatches.toSet.removedAll(boxMatches)
-        val gained = boxMatches.toSet.removedAll(spriteMatches)
-        if (lost.nonEmpty || gained.nonEmpty) {
-          println(
-            s"Changing to box based matching loses: ${lost.map(_.name).mkString(", ")}"
-          )
-          println(s"and gains: ${gained.map(_.name).mkString(", ")}")
+    (for {
+      vanillaData <- EitherT(
+        JsonReader[IO](
+          unpackedContent.resolve("Data").resolve("Furniture.json").toFile
+        ).decode[Seq[FurnitureData]]
+      ).leftWiden[Throwable]
+      mod <- EitherT(CustomFurnitureModReader.read[IO](target))
+        .leftWiden[Throwable]
+      result <- EitherT.liftF[IO, Throwable, Unit](
+        if (analyzeOnly) {
+          IO.pure(analyze(vanillaData, mod))
+        } else {
+          val converter =
+            AlternativeTexturesConverter(
+              CustomFurnitureSpriteExtractor(spriteExtractionOptions),
+              AlternativeTexturesSpriteConverter(spriteConversionOptions)
+            )
+          val convertedMod =
+            converter.createAlternateTexturesMod(mod, vanillaData)
+          AlternativeTexturesModWriter(convertedMod).writeTo[IO](outputTo)
         }
-        println()
-      }
-      println(s"Done analyzing matches")
-    } else {
-      val customFurnitureSpriteExtractor =
-        CustomFurnitureSpriteExtractor(spriteExtractionOptions)
-      val alternativeTexturesSpriteConverter =
-        AlternativeTexturesSpriteConverter(spriteConversionOptions)
-      val converter =
-        AlternativeTexturesConverter(
-          customFurnitureSpriteExtractor,
-          alternativeTexturesSpriteConverter
+      )
+    } yield result).value.unsafeRunSync().fold(throw _, identity)
+  }
+
+  def analyze(
+      vanillaData: Seq[FurnitureData],
+      mod: CustomFurnitureMod
+  ): Unit = {
+    val alternates = vanillaData
+      .filterNot(data => data.name.contains(':') || data.name.startsWith("'"))
+
+    def ofInterest(matches: Seq[FurnitureData]): String =
+      matches
+        .distinctBy(fd =>
+          (fd.furnitureType, fd.tilesheetSize, fd.boundingBoxSize)
         )
-      val convertedMod =
-        converter.createAlternateTexturesMod(mod, vanillaData)
-      AlternativeTexturesModWriter(convertedMod).writeTo(outputTo)
+        .take(3)
+        .map(_.name)
+        .mkString(", ")
+
+    mod.pack.furniture.map { cf =>
+      println(s"Looking for matches for ${cf.id}: ${cf.name}")
+      val spriteMatches = CustomFurnitureMatcher
+        .findMatchingAlternatesBySprite(cf, alternates)
+        .tap {
+          _.fold(println(s"No sprite matches found")) { spriteMatches =>
+            println(
+              s"Found the following sprite matches: ${ofInterest(spriteMatches.toSeq)}"
+            )
+          }
+        }
+        .map(_.toSeq)
+        .getOrElse(Seq.empty)
+      val boxMatches = CustomFurnitureMatcher
+        .findMatchingAlternatesByBox(cf, alternates)
+        .tap {
+          _.fold(println(s"No sprite matches found")) { boxMatches =>
+            println(
+              s"Found the following box matches: ${ofInterest(boxMatches.toSeq)}"
+            )
+          }
+        }
+        .map(_.toSeq)
+        .getOrElse(Seq.empty)
+      val lost = spriteMatches.toSet.removedAll(boxMatches)
+      val gained = boxMatches.toSet.removedAll(spriteMatches)
+      if (lost.nonEmpty || gained.nonEmpty) {
+        println(
+          s"Changing to box based matching loses: ${lost.map(_.name).mkString(", ")}"
+        )
+        println(s"and gains: ${gained.map(_.name).mkString(", ")}")
+      }
+      println()
     }
+    println(s"Done analyzing matches")
   }
 }
 

@@ -16,6 +16,10 @@
 
 package com.quincyjo.stardrop.encoding
 
+import cats.Monad
+import cats.data.{EitherT, Nested}
+import cats.effect.{Async, Resource}
+import cats.implicits._
 import com.fasterxml.jackson.core.json.JsonReadFeature
 import com.fasterxml.jackson.core.{
   JsonFactory,
@@ -34,36 +38,32 @@ import java.io.{File, InputStream}
 import java.net.URL
 import java.nio.file.{Path => JPath}
 import scala.reflect.ClassTag
-import scala.util.Try
 import scala.util.chaining.scalaUtilChainingOps
 import scala.util.control.NoStackTrace
 
-// TODO: Remove exceptions and handle asynchronously with cats effect.
 /** A custom JSON reader that uses a configured Jackson parser under the hood.
   * The reason for this is to allow options for non-strict parsing. This is
   * because many JSONs for mods are handwritten, so things like comment strings
   * (which are not valid JSON), trailing commas, etc. are common.
-  * @param parser
-  *   The Jackson exposing the input to parse.
+  * @param makeParser
+  *   Factory method to create the Jackson exposing the input to parse.
   */
-class JsonReader(parser: JsonParser) {
+class JsonReader[F[_]: Async](jsonParser: Resource[F, JsonParser]) {
 
   /** Parses a JSON object from the underlying input.
     * @return
     *   The parsed JSON object or an error.
     */
-  def parse: ReaderResult[Json] =
-    Try {
-      try nextJson
-      finally parser.close()
-    }.toEither.left
-      .map(ex =>
+  def parse: F[ReaderResult[Json]] =
+    jsonParser.use { jsonParser =>
+      nextJson(jsonParser: JsonParser).map(_.left.map { ex =>
         JsonReaderException(
-          s"Failed ot read JSON from file",
-          parser.currentLocation(),
+          s"Failed to read JSON from file",
+          jsonParser.currentLocation(),
           ex
         )
-      )
+      })
+    }
 
   /** Decodes the underlying input into a value of type `T`.
     * @tparam T
@@ -71,110 +71,208 @@ class JsonReader(parser: JsonParser) {
     * @return
     *   The decoded value or an error.
     */
-  def decode[T: Decoder: ClassTag]: ReaderResult[T] =
-    parse.flatMap(_.as[T].left.map { decodingFailure =>
-      JsonReaderException(
-        s"Failed to decode json as ${implicitly[ClassTag[T]]} ",
-        cause = Some(decodingFailure)
-      )
+  def decode[T: Decoder: ClassTag]: F[ReaderResult[T]] =
+    parse.map(_.flatMap { json =>
+      json
+        .as[T]
+        .fold(
+          ex =>
+            Left(
+              JsonReaderException(
+                s"Failed to decode json as ${implicitly[ClassTag[T]]} ",
+                cause = Some(ex)
+              )
+            ),
+          Right.apply
+        )
     })
 
   /** Parses a JSON object from the current token.
     * @return
     *   The parsed JSON object.
     */
-  @throws[JsonReaderException](
-    "If the current token is not a valid JSON object."
-  )
-  private def parseObject: Json = parser.currentToken() match {
-    case JsonToken.START_OBJECT =>
-      val builder = Map.newBuilder[String, Json]
-      while (parser.nextToken() != JsonToken.END_OBJECT) {
-        builder.addOne(parseFieldName -> nextJson)
-      }
-      Json.fromFields(builder.result())
-    case otherToken =>
-      throw JsonReaderException(
-        s"Cannot parse an object from a $otherToken",
-        Some(parser.currentLocation())
-      )
-  }
+  private def parseObject(
+      parser: JsonParser
+  ): F[ReaderResult[Json]] =
+    parser.currentToken() match {
+      case JsonToken.START_OBJECT =>
+        val builder = Map.newBuilder[String, Json]
+        Monad[EitherT[F, JsonReaderException, *]]
+          .whileM_(
+            EitherT(nextToken(parser)).map(_ != JsonToken.END_OBJECT)
+          )(for {
+            fieldName <- EitherT(parseFieldName(parser))
+            json <- EitherT(parseCurrent(parser))
+          } yield builder.addOne(fieldName -> json))
+          .map { _ => Json.fromFields(builder.result()) }
+          .value
+      case otherToken =>
+        Async[F].pure(
+          Left(
+            JsonReaderException(
+              s"Expected ${JsonToken.START_OBJECT} but found $otherToken",
+              Some(parser.currentLocation())
+            )
+          )
+        )
+    }
 
   /** Parses a field name from the current token.
     * @return
     *   The parsed field name.
     */
-  @throws[JsonReaderException](
-    "If the current token is not a valid field name."
-  )
-  private def parseFieldName: String = parser.currentToken() match {
-    case JsonToken.FIELD_NAME => parser.getValueAsString
-    case otherToken =>
-      throw JsonReaderException(
-        s"Expected field name but was $otherToken",
-        Some(parser.currentLocation())
+  private def parseFieldName(
+      parser: JsonParser
+  ): F[ReaderResult[String]] =
+    parser.currentToken() match {
+      case JsonToken.FIELD_NAME => getValueAsString(parser)
+      case otherToken =>
+        Async[F].pure(
+          Left(
+            JsonReaderException(
+              s"Expected field name but was $otherToken",
+              Some(parser.currentLocation())
+            )
+          )
+        )
+    }
+
+  private def getValueAsString(
+      parser: JsonParser
+  ): F[ReaderResult[String]] =
+    Async[F]
+      .blocking[ReaderResult[String]](
+        Right[JsonReaderException, String](parser.getValueAsString)
       )
-  }
+      .recover { ex =>
+        Left(
+          JsonReaderException(
+            "Failed to read JSON string.",
+            parser.currentLocation(),
+            ex
+          )
+        )
+      }
+
+  private def getIntValue(
+      parser: JsonParser
+  ): F[ReaderResult[Int]] =
+    Async[F]
+      .blocking[ReaderResult[Int]](
+        Right[JsonReaderException, Int](parser.getIntValue)
+      )
+      .recover { ex =>
+        Left(
+          JsonReaderException(
+            "Failed to read JSON integer.",
+            parser.currentLocation(),
+            ex
+          )
+        )
+      }
+
+  private def nextToken(
+      parser: JsonParser
+  ): F[ReaderResult[JsonToken]] =
+    Async[F]
+      .blocking[ReaderResult[JsonToken]](Right(parser.nextToken()))
+      .recover { ex =>
+        Left(
+          JsonReaderException(
+            "Failed to read JSON token.",
+            parser.currentLocation(),
+            ex
+          )
+        )
+      }
+
+  private def getDecimalValue(
+      parser: JsonParser
+  ): F[ReaderResult[BigDecimal]] =
+    Async[F]
+      .blocking[ReaderResult[BigDecimal]](
+        Right(scala.math.BigDecimal(parser.getDecimalValue))
+      )
+      .recover { ex =>
+        Left(
+          JsonReaderException(
+            "Failed to JSON number.",
+            parser.currentLocation(),
+            ex
+          )
+        )
+      }
 
   /** Parses a JSON array from the current token.
     * @return
     *   The parsed JSON array.
     */
-  @throws[JsonReaderException](
-    "If the current token is not a valid JSON array."
-  )
-  private def parseArray: Json = parser.currentToken() match {
-    case JsonToken.START_ARRAY =>
-      val builder = Vector.newBuilder[Json]
-      while (parser.nextToken() != JsonToken.END_ARRAY) {
-        builder.addOne(parseCurrent)
-      }
-      Json.fromValues(builder.result())
-    case otherToken =>
-      throw JsonReaderException(
-        s"Cannot parse an array from a $otherToken",
-        Some(parser.currentLocation())
-      )
-  }
+  private def parseArray(
+      parser: JsonParser
+  ): F[ReaderResult[Json]] =
+    parser.currentToken() match {
+      case JsonToken.START_ARRAY =>
+        val builder = Vector.newBuilder[Json]
+        Monad[EitherT[F, JsonReaderException, *]]
+          .whileM_(
+            EitherT(nextToken(parser)).map(_ != JsonToken.END_ARRAY)
+          )(
+            EitherT(parseCurrent(parser))
+              .map(builder.addOne)
+          )
+          .map { _ => Json.fromValues(builder.result()) }
+          .value
+      case otherToken =>
+        Async[F].raiseError(
+          JsonReaderException(
+            s"Expected ${JsonToken.START_ARRAY} but found $otherToken",
+            Some(parser.currentLocation())
+          )
+        )
+    }
 
   /** Parses a JSON value from the current token.
     * @return
     *   The parsed JSON value.
     */
-  @throws[JsonReaderException](
-    "If the current token is not a valid JSON value."
-  )
-  private def parseCurrent: Json = parser.currentToken() match {
-    case JsonToken.START_OBJECT     => parseObject
-    case JsonToken.START_ARRAY      => parseArray
-    case JsonToken.VALUE_STRING     => Json.fromString(parser.getValueAsString)
-    case JsonToken.VALUE_NUMBER_INT => Json.fromInt(parser.getIntValue)
-    case JsonToken.VALUE_NUMBER_FLOAT =>
-      Json.fromBigDecimal(parser.getDecimalValue)
-    case JsonToken.VALUE_TRUE  => Json.True
-    case JsonToken.VALUE_FALSE => Json.False
-    case JsonToken.VALUE_NULL  => Json.Null
-    case JsonToken.FIELD_NAME | JsonToken.END_ARRAY | JsonToken.END_ARRAY |
-        JsonToken.END_OBJECT | JsonToken.NOT_AVAILABLE |
-        JsonToken.VALUE_EMBEDDED_OBJECT =>
-      throw JsonReaderException(
-        s"Unexpected ${parser.currentToken()} token!",
-        Some(parser.currentLocation())
-      )
-  }
+  private def parseCurrent(
+      parser: JsonParser
+  ): F[ReaderResult[Json]] =
+    parser.currentToken() match {
+      case JsonToken.START_OBJECT => parseObject(parser)
+      case JsonToken.START_ARRAY  => parseArray(parser)
+      case JsonToken.VALUE_STRING =>
+        Nested(getValueAsString(parser)).map(Json.fromString).value
+      case JsonToken.VALUE_NUMBER_INT =>
+        Nested(getIntValue(parser)).map(Json.fromInt).value
+      case JsonToken.VALUE_NUMBER_FLOAT =>
+        Nested(getDecimalValue(parser)).map(Json.fromBigDecimal).value
+      case JsonToken.VALUE_TRUE =>
+        Async[F].pure(Right(Json.True))
+      case JsonToken.VALUE_FALSE =>
+        Async[F].pure(Right(Json.False))
+      case JsonToken.VALUE_NULL =>
+        Async[F].pure(Right(Json.Null))
+      case JsonToken.FIELD_NAME | JsonToken.END_ARRAY | JsonToken.END_ARRAY |
+          JsonToken.END_OBJECT | JsonToken.NOT_AVAILABLE |
+          JsonToken.VALUE_EMBEDDED_OBJECT =>
+        Async[F].pure(
+          Left(
+            JsonReaderException(
+              s"Unexpected ${parser.currentToken()} token!",
+              Some(parser.currentLocation())
+            )
+          )
+        )
+    }
 
   /** Advances the parser to the next JSON token and then parses it as a JSON.
     * Specifically, this is used on initial parse to advance to the first token.
     * @return
     *   The parsed JSON object.
     */
-  @throws[JsonReaderException](
-    "If the current token is not a valid JSON object."
-  )
-  private def nextJson: Json = {
-    parser.nextToken()
-    parseCurrent
-  }
+  private def nextJson(parser: JsonParser): F[ReaderResult[Json]] =
+    nextToken(parser) >> parseCurrent(parser)
 }
 
 object JsonReader {
@@ -230,23 +328,30 @@ object JsonReader {
       new JsonReaderException(message, Some(location), Some(cause))
   }
 
-  def apply(content: String): JsonReader =
-    new JsonReader(jsonFactory.createParser(content))
+  private def makeWithResource[F[_]: Async](
+      makeParser: () => JsonParser
+  ): JsonReader[F] =
+    new JsonReader[F](Resource.make(Async[F].blocking(makeParser())) { parser =>
+      Async[F].blocking(parser.close())
+    })
 
-  def apply(in: InputStream): JsonReader =
-    new JsonReader(jsonFactory.createParser(in))
+  def apply[F[_]: Async](content: String): JsonReader[F] =
+    makeWithResource[F](() => jsonFactory.createParser(content))
 
-  def apply(url: URL): JsonReader =
-    new JsonReader(jsonFactory.createParser(url))
+  def apply[F[_]: Async](in: InputStream): JsonReader[F] =
+    makeWithResource[F](() => jsonFactory.createParser(in))
 
-  def apply(file: File): JsonReader =
-    new JsonReader(jsonFactory.createParser(file))
+  def apply[F[_]: Async](url: URL): JsonReader[F] =
+    makeWithResource[F](() => jsonFactory.createParser(url))
 
-  def apply(path: JPath): JsonReader =
-    JsonReader(path.toFile)
+  def apply[F[_]: Async](file: File): JsonReader[F] =
+    makeWithResource[F](() => jsonFactory.createParser(file))
 
-  def apply(file: scala.reflect.io.File): JsonReader =
-    new JsonReader(jsonFactory.createParser(file.jfile))
+  def apply[F[_]: Async](path: JPath): JsonReader[F] =
+    JsonReader[F](path.toFile)
+
+  def apply[F[_]: Async](file: scala.reflect.io.File): JsonReader[F] =
+    makeWithResource[F](() => jsonFactory.createParser(file.jfile))
 
   private final val enabledFeatures: Iterable[JsonParser.Feature] = Vector(
     JsonParser.Feature.ALLOW_COMMENTS,
